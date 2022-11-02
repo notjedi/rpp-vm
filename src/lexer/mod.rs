@@ -1,13 +1,12 @@
 use std::fmt;
-// use std::string::String;
 
 #[derive(Debug)]
 #[allow(dead_code)] // TODO:  remove this
 pub enum TokenKind {
-    ProgramStart, // LAKSHMI START
-    ProgramEnd,   // MAGIZHCHI
+    ProgramStart,
+    ProgramEnd,
 
-    Print, // DOT
+    Print,
 
     // Symbols
     SemiColon,
@@ -37,24 +36,24 @@ pub enum TokenKind {
     NotEqual,
 
     // rajini++ commands
-    StartDeclare, // AANDAVAN SOLLRAN
-    Declare,      // ARUNACHALAM SEIYARAN
-    Assign,       // BHAJJI SAAPDU
-    DeclareAlt,   // :=
+    StartDeclare,
+    Declare,
+    Assign,
+    DeclareAlt,
 
     // Flow Control
-    IfCond,        // EN PEAR MANICKAM
-    ElseCond,      // ENAKKU INNURU PEAR IRUKKU
-    WhileLoop,     // BABA COUNTING STARTS
-    ForStart,      // NAA
-    ForRangeStart, // THADAVA SONNA
-    ForRangeEnd,   // THADAVA SONNA MADHRI
-    EndBlock,      // KATHAM KATHAM
-    BreakLoop,     // BLACK SHEEP
-    FuncDeclare,   // EN VAZHI THANI VAZHI
-    EndFunc,       // MARAKKADHINGA
-    FuncReturn,    // IDHU EPDI IRUKKU
-    FuncCall,      // CHUMMA ADHURUDHULA
+    IfCond,
+    ElseCond,
+    WhileLoop,
+    ForStart,
+    ForRangeStart,
+    ForRangeEnd,
+    EndBlock,
+    BreakLoop,
+    FuncDeclare,
+    EndFunc,
+    FuncReturn,
+    FuncCall,
 }
 
 impl fmt::Display for TokenKind {
