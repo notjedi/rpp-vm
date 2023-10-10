@@ -4,7 +4,7 @@ use tokens::TokenKind;
 
 pub struct Lexer {
     input: Vec<char>, // Source code
-    pub pos: usize,   // Reading position
+    pos: usize,       // Reading position
 }
 
 #[cfg(test)]

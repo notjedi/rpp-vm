@@ -54,6 +54,8 @@ pub enum TokenKind {
     EndFunc,
     FuncReturn,
     FuncCall,
+
+    Illegal,
 }
 
 impl fmt::Display for TokenKind {
@@ -109,6 +111,60 @@ impl TokenKind {
             TokenKind::EndFunc => String::from("MARAKKADHINGA"),
             TokenKind::FuncReturn => String::from("IDHU EPDI IRUKKU"),
             TokenKind::FuncCall => String::from("CHUMMA ADHURUDHULA"),
+
+            TokenKind::Illegal => String::from("Illegal"),
+        }
+    }
+}
+
+impl From<&str> for TokenKind {
+    fn from(value: &str) -> Self {
+        match value {
+            "LAKSHMI START" => TokenKind::ProgramStart,
+            "MAGIZHCHI" => TokenKind::ProgramEnd,
+
+            "DOT" => TokenKind::Print,
+
+            ";" => TokenKind::SemiColon,
+            "{" => TokenKind::LeftBrace,
+            "}" => TokenKind::RightBrace,
+
+            // num.to_string() => TokenKind::Number(num),
+            // ident.to_string() => TokenKind::Ident(ident),
+            // literal.to_string() => TokenKind::Literal(literal),
+            "true" => TokenKind::BoolTrue,
+            "false" => TokenKind::BoolFalse,
+
+            "+" => TokenKind::Sum,
+            "-" => TokenKind::Sub,
+            "*" => TokenKind::Mul,
+            "/" => TokenKind::Div,
+            "%" => TokenKind::Mod,
+            ">" => TokenKind::GreaterThan,
+            "<" => TokenKind::LessThan,
+            ">=" => TokenKind::GreaterThanEqual,
+            "<=" => TokenKind::LessThanEqual,
+            "==" => TokenKind::Equal,
+            "!=" => TokenKind::NotEqual,
+
+            "AANDAVAN SOLLRAN" => TokenKind::StartDeclare,
+            "ARUNACHALAM SEIYARAN" => TokenKind::Declare,
+            "BHAJJI SAAPDU" => TokenKind::Assign,
+            ":=" => TokenKind::DeclareAlt,
+
+            "EN PEAR MANICKAM" => TokenKind::IfCond,
+            "ENAKKU INNURU PEAR IRUKKU" => TokenKind::ElseCond,
+            "BABA COUNTING STARTS" => TokenKind::WhileLoop,
+            "NAA" => TokenKind::ForStart,
+            "THADAVA SONNA" => TokenKind::ForRangeStart,
+            "THADAVA SONNA MADHRI" => TokenKind::ForRangeEnd,
+            "KATHAM KATHAM" => TokenKind::EndBlock,
+            "BLACK SHEEP" => TokenKind::BreakLoop,
+            "EN VAZHI THANI VAZHI" => TokenKind::FuncDeclare,
+            "MARAKKADHINGA" => TokenKind::EndFunc,
+            "IDHU EPDI IRUKKU" => TokenKind::FuncReturn,
+            "CHUMMA ADHURUDHULA" => TokenKind::FuncCall,
+            _ => TokenKind::Illegal,
         }
     }
 }
