@@ -53,6 +53,8 @@ pub enum Token {
     EndFunc,
     FuncReturn,
     FuncCall,
+
+    Illegal,
 }
 
 impl fmt::Display for Token {
@@ -108,6 +110,8 @@ impl Token {
             Token::FuncReturn => String::from("IDHU EPDI IRUKKU"),
             Token::FuncCall => String::from("CHUMMA ADHURUDHULA"),
             Token::Comment(_) => String::from("Comment"),
+
+            Token::Illegal => String::from("Illegal"),
         }
     }
 }

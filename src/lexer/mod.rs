@@ -112,10 +112,23 @@ impl Lexer {
         .to_string())
     }
 
-    pub fn reset(&mut self) {
-        self.ch = ' ';
-        self.pos = 0;
-        self.read_pos = 0;
+    fn peek_next_word(&mut self) -> Result<String> {
+        let read_pos = self.read_pos;
+        let pos = self.pos;
+        let ch = self.ch;
+
+        let _ = self.skip_whitespace();
+        let next_word = self.read_ident();
+
+        self.ch = ch;
+        self.pos = pos;
+        self.read_pos = read_pos;
+        next_word
+    }
+
+    fn skip_next_word(&mut self) {
+        let _ = self.skip_whitespace();
+        let _ = self.read_ident();
     }
 
     pub fn peek(&mut self) -> char {
@@ -195,29 +208,161 @@ impl Lexer {
 
             'a'..='z' | 'A'..='Z' | '_' => {
                 let tok = match self.read_ident()?.as_str() {
-                    "LAKSHMI START" => Token::ProgramStart,
+                    "MARAKKADHINGA" => Token::EndFunc,
                     "MAGIZHCHI" => Token::ProgramEnd,
+                    "NAA" => Token::ForStart,
                     "DOT" => Token::Print,
 
                     "true" => Token::BoolTrue,
                     "false" => Token::BoolFalse,
 
-                    "AANDAVAN SOLLRAN" => Token::StartDeclare,
-                    "ARUNACHALAM SEIYARAN" => Token::Declare,
-                    "BHAJJI SAAPDU" => Token::Assign,
+                    "LAKSHMI" => {
+                        if self.peek_next_word().is_ok_and(|x| x == "START") {
+                            self.skip_next_word();
+                            Token::ProgramStart
+                        } else {
+                            Token::Illegal
+                        }
+                    }
+                    "AANDAVAN" => {
+                        if self.peek_next_word().is_ok_and(|x| x == "SOLLRAN") {
+                            self.skip_next_word();
+                            Token::StartDeclare
+                        } else {
+                            Token::Illegal
+                        }
+                    }
+                    "ARUNACHALAM" => {
+                        if self.peek_next_word().is_ok_and(|x| x == "SEIYARAN") {
+                            self.skip_next_word();
+                            Token::Declare
+                        } else {
+                            Token::Illegal
+                        }
+                    }
+                    "BHAJJI" => {
+                        if self.peek_next_word().is_ok_and(|x| x == "SAAPDU") {
+                            self.skip_next_word();
+                            Token::Assign
+                        } else {
+                            Token::Illegal
+                        }
+                    }
+                    "THADAVA" => {
+                        if self.peek_next_word().is_ok_and(|x| x == "SONNA") {
+                            self.skip_next_word();
+                            if self.peek_next_word().is_ok_and(|x| x == "MADHRI") {
+                                self.skip_next_word();
+                                Token::ForRangeEnd
+                            } else {
+                                Token::ForRangeStart
+                            }
+                        } else {
+                            Token::Illegal
+                        }
+                    }
+                    "KATHAM" => {
+                        if self.peek_next_word().is_ok_and(|x| x == "KATHAM") {
+                            self.skip_next_word();
+                            Token::EndBlock
+                        } else {
+                            Token::Illegal
+                        }
+                    }
+                    "BLACK" => {
+                        if self.peek_next_word().is_ok_and(|x| x == "SHEEP") {
+                            self.skip_next_word();
+                            Token::BreakLoop
+                        } else {
+                            Token::Illegal
+                        }
+                    }
+                    "CHUMMA" => {
+                        if self.peek_next_word().is_ok_and(|x| x == "ADHURUDHULA") {
+                            self.skip_next_word();
+                            Token::FuncCall
+                        } else {
+                            Token::Illegal
+                        }
+                    }
 
-                    "EN PEAR MANICKAM" => Token::IfCond,
-                    "ENAKKU INNURU PEAR IRUKKU" => Token::ElseCond,
-                    "BABA COUNTING STARTS" => Token::WhileLoop,
-                    "NAA" => Token::ForStart,
-                    "THADAVA SONNA" => Token::ForRangeStart,
-                    "THADAVA SONNA MADHRI" => Token::ForRangeEnd,
-                    "KATHAM KATHAM" => Token::EndBlock,
-                    "BLACK SHEEP" => Token::BreakLoop,
-                    "EN VAZHI THANI VAZHI" => Token::FuncDeclare,
-                    "MARAKKADHINGA" => Token::EndFunc,
-                    "IDHU EPDI IRUKKU" => Token::FuncReturn,
-                    "CHUMMA ADHURUDHULA" => Token::FuncCall,
+                    // i'm crying inside after writing this
+                    "EN" => {
+                        if self.peek_next_word().is_ok_and(|x| x == "PEAR") {
+                            self.skip_next_word();
+                            if self.peek_next_word().is_ok_and(|x| x == "MANICKAM") {
+                                self.skip_next_word();
+                                Token::IfCond
+                            } else {
+                                Token::Illegal
+                            }
+                        } else if self.peek_next_word().is_ok_and(|x| x == "VAZHI") {
+                            self.skip_next_word();
+                            if self.peek_next_word().is_ok_and(|x| x == "THANI") {
+                                self.skip_next_word();
+                                if self.peek_next_word().is_ok_and(|x| x == "VAZHI") {
+                                    self.skip_next_word();
+                                    Token::FuncDeclare
+                                } else {
+                                    Token::Illegal
+                                }
+                            } else {
+                                Token::Illegal
+                            }
+                        } else {
+                            Token::Illegal
+                        }
+                    }
+
+                    // i'm crying inside after writing this
+                    "BABA" => {
+                        if self.peek_next_word().is_ok_and(|x| x == "COUNTING") {
+                            self.skip_next_word();
+                            if self.peek_next_word().is_ok_and(|x| x == "STARTS") {
+                                self.skip_next_word();
+                                Token::WhileLoop
+                            } else {
+                                Token::Illegal
+                            }
+                        } else {
+                            Token::Illegal
+                        }
+                    }
+
+                    // i'm crying inside after writing this
+                    "IDHU" => {
+                        if self.peek_next_word().is_ok_and(|x| x == "EPDI") {
+                            self.skip_next_word();
+                            if self.peek_next_word().is_ok_and(|x| x == "IRUKKU") {
+                                self.skip_next_word();
+                                Token::FuncReturn
+                            } else {
+                                Token::Illegal
+                            }
+                        } else {
+                            Token::Illegal
+                        }
+                    }
+
+                    // i'm crying inside after writing this
+                    "ENAKKU" => {
+                        if self.peek_next_word().is_ok_and(|x| x == "INNURU") {
+                            self.skip_next_word();
+                            if self.peek_next_word().is_ok_and(|x| x == "PEAR") {
+                                self.skip_next_word();
+                                if self.peek_next_word().is_ok_and(|x| x == "IRUKKU") {
+                                    self.skip_next_word();
+                                    Token::ElseCond
+                                } else {
+                                    Token::Illegal
+                                }
+                            } else {
+                                Token::Illegal
+                            }
+                        } else {
+                            Token::Illegal
+                        }
+                    }
 
                     ident => Token::Ident(ident.to_string()),
                 };
@@ -236,6 +381,7 @@ impl Lexer {
 #[cfg(test)]
 mod tests {
     use super::Lexer;
+    use super::Token::*;
     use anyhow::Result;
 
     #[test]
@@ -267,14 +413,95 @@ mod tests {
             MAGIZHCHI
         "#;
 
-        let mut lexer = Lexer::new(program.to_string());
-        loop {
-            match lexer.next_token() {
-                Ok(token) => println!("{:?}", token),
-                Err(_) => break,
-            }
-        }
+        let tokens = vec![
+            ProgramStart,
+            Comment(String::from("!! declare variables")),
+            StartDeclare,
+            Ident(String::from("ix")),
+            Declare,
+            Number(String::from("1")),
+            SemiColon,
+            StartDeclare,
+            Ident(String::from("range")),
+            Declare,
+            Number(String::from("16")),
+            SemiColon,
+            ForStart,
+            Number(String::from("1")),
+            ForRangeStart,
+            Ident(String::from("range")),
+            ForRangeEnd,
+            LeftBrace,
+            IfCond,
+            Ident(String::from("ix")),
+            Mod,
+            Number(String::from("15")),
+            Equal,
+            Number(String::from("0")),
+            LeftBrace,
+            Print,
+            Literal(String::from(r#""FizzBuzz""#)),
+            SemiColon,
+            RightBrace,
+            ElseCond,
+            LeftBrace,
+            IfCond,
+            Ident(String::from("ix")),
+            Mod,
+            Number(String::from("3")),
+            Equal,
+            Number(String::from("0")),
+            LeftBrace,
+            Print,
+            Literal(String::from(r#""Fizz""#)),
+            SemiColon,
+            RightBrace,
+            ElseCond,
+            LeftBrace,
+            IfCond,
+            Ident(String::from("ix")),
+            Mod,
+            Number(String::from("5")),
+            Equal,
+            Number(String::from("0")),
+            LeftBrace,
+            Print,
+            Literal(String::from(r#""Buzz""#)),
+            SemiColon,
+            RightBrace,
+            ElseCond,
+            LeftBrace,
+            Print,
+            Ident(String::from("ix")),
+            SemiColon,
+            RightBrace,
+            EndBlock,
+            SemiColon,
+            RightBrace,
+            EndBlock,
+            SemiColon,
+            RightBrace,
+            EndBlock,
+            SemiColon,
+            Ident(String::from("ix")),
+            Assign,
+            Ident(String::from("ix")),
+            Sum,
+            Number(String::from("1")),
+            SemiColon,
+            Comment(String::from("!! End Loop")),
+            RightBrace,
+            EndBlock,
+            SemiColon,
+            ProgramEnd,
+        ];
 
+        let mut lexer = Lexer::new(program.to_string());
+        for token in tokens {
+            let lex_token = lexer.next_token()?;
+            assert_eq!(token, lex_token);
+        }
+        assert!(lexer.next_token().is_err());
         Ok(())
     }
 }
