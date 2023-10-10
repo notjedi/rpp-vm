@@ -1,22 +1,21 @@
 use std::fmt;
 
-#[derive(Debug)]
-#[allow(dead_code)] // TODO:  remove this
+#[derive(Debug, PartialEq, Eq)]
 pub enum Token {
     ProgramStart,
     ProgramEnd,
+    Comment(String),
 
     Print,
 
-    // Symbols
     SemiColon,
     LeftBrace,
     RightBrace,
 
-    // Vars
-    Number(u64),
+    Number(String),
     Ident(String),
     Literal(String),
+
     BoolTrue,
     BoolFalse,
 
@@ -54,8 +53,6 @@ pub enum Token {
     EndFunc,
     FuncReturn,
     FuncCall,
-
-    Illegal,
 }
 
 impl fmt::Display for Token {
@@ -70,30 +67,29 @@ impl Token {
             Token::ProgramStart => String::from("LAKSHMI START"),
             Token::ProgramEnd => "MAGIZHCHI".to_string(),
 
-            Token::Print => String::from("DOT"),
+            Token::Number(num) => num.to_string(),
+            Token::Ident(ident) => ident.to_string(),
+            Token::Literal(literal) => literal.to_string(),
+
+            Token::BoolTrue => String::from("true"),
+            Token::BoolFalse => String::from("false"),
 
             Token::SemiColon => String::from(";"),
             Token::LeftBrace => String::from("{"),
             Token::RightBrace => String::from("}"),
-
-            Token::Number(num) => num.to_string(),
-            Token::Ident(ident) => ident.to_string(),
-            Token::Literal(literal) => literal.to_string(),
-            Token::BoolTrue => String::from("true"),
-            Token::BoolFalse => String::from("false"),
-
             Token::Sum => String::from("+"),
             Token::Sub => String::from("-"),
             Token::Mul => String::from("*"),
             Token::Div => String::from("/"),
             Token::Mod => String::from("%"),
             Token::GreaterThan => String::from(">"),
-            Token::LessThan => String::from("<"),
             Token::GreaterThanEqual => String::from(">="),
+            Token::LessThan => String::from("<"),
             Token::LessThanEqual => String::from("<="),
             Token::Equal => String::from("=="),
             Token::NotEqual => String::from("!="),
 
+            Token::Print => String::from("DOT"),
             Token::StartDeclare => String::from("AANDAVAN SOLLRAN"),
             Token::Declare => String::from("ARUNACHALAM SEIYARAN"),
             Token::Assign => String::from("BHAJJI SAAPDU"),
@@ -111,8 +107,7 @@ impl Token {
             Token::EndFunc => String::from("MARAKKADHINGA"),
             Token::FuncReturn => String::from("IDHU EPDI IRUKKU"),
             Token::FuncCall => String::from("CHUMMA ADHURUDHULA"),
-
-            Token::Illegal => String::from("Illegal"),
+            Token::Comment(_) => String::from("Comment"),
         }
     }
 }
@@ -122,16 +117,12 @@ impl From<&str> for Token {
         match value {
             "LAKSHMI START" => Token::ProgramStart,
             "MAGIZHCHI" => Token::ProgramEnd,
-
             "DOT" => Token::Print,
 
             ";" => Token::SemiColon,
             "{" => Token::LeftBrace,
             "}" => Token::RightBrace,
 
-            // num.to_string() => TokenKind::Number(num),
-            // ident.to_string() => TokenKind::Ident(ident),
-            // literal.to_string() => TokenKind::Literal(literal),
             "true" => Token::BoolTrue,
             "false" => Token::BoolFalse,
 
@@ -164,7 +155,8 @@ impl From<&str> for Token {
             "MARAKKADHINGA" => Token::EndFunc,
             "IDHU EPDI IRUKKU" => Token::FuncReturn,
             "CHUMMA ADHURUDHULA" => Token::FuncCall,
-            _ => Token::Illegal,
+
+            _ => Token::Literal(value.to_string()),
         }
     }
 }
