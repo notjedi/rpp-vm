@@ -1,6 +1,6 @@
 pub mod tokens;
 
-use tokens::TokenKind;
+use tokens::Token;
 
 pub struct Lexer {
     input: Vec<char>, // Source code
