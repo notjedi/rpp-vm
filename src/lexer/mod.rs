@@ -1,7 +1,17 @@
 mod tokens;
 pub use tokens::Token;
 
-use anyhow::Result;
+use anyhow::{bail, Result};
+use std::{error::Error, fmt::Display};
+
+#[derive(Debug)]
+pub struct OutofInputError;
+impl Display for OutofInputError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ran out of input")
+    }
+}
+impl Error for OutofInputError {}
 
 pub struct Lexer {
     input: Vec<char>,
@@ -16,86 +26,90 @@ impl Lexer {
             input: input.chars().collect(),
             read_pos: 0,
             pos: 0,
-            ch: ' ',
+            ch: 0 as char,
         };
-        lexer.read_char();
+        let _ = lexer.read_char();
         lexer
     }
 
-    fn read_char(&mut self) {
+    fn read_char(&mut self) -> Result<()> {
         if self.read_pos < self.input.len() {
             self.ch = self.input[self.read_pos];
             self.pos = self.read_pos;
             self.read_pos += 1;
+            return Ok(());
         }
+        bail!(OutofInputError)
+        // Err(OutofInputError).into()
     }
 
-    fn skip_whitespace(&mut self) {
-        while (self.ch == ' ' || self.ch == '\n') && self.read_pos < self.input.len() {
-            self.read_char();
+    fn skip_whitespace(&mut self) -> Result<()> {
+        while self.ch == ' ' || self.ch == '\n' {
+            self.read_char()?;
         }
+        Ok(())
     }
 
-    fn read_ident(&mut self) -> String {
+    fn read_ident(&mut self) -> Result<String> {
         let pos = self.pos;
         while self.ch.is_ascii_alphabetic() || self.ch == '_' {
-            self.read_char();
+            self.read_char()?;
         }
 
-        String::from_utf8_lossy(
+        Ok(String::from_utf8_lossy(
             &self.input[pos..self.pos]
                 .iter()
                 .map(|c| *c as u8)
                 .collect::<Vec<u8>>(),
         )
-        .to_string()
+        .to_string())
     }
 
-    fn read_int(&mut self) -> String {
+    fn read_int(&mut self) -> Result<String> {
         let pos = self.pos;
         while self.ch.is_ascii_digit() {
-            self.read_char();
+            self.read_char()?;
         }
 
-        String::from_utf8_lossy(
+        Ok(String::from_utf8_lossy(
             &self.input[pos..self.pos]
                 .iter()
                 .map(|c| *c as u8)
                 .collect::<Vec<u8>>(),
         )
-        .to_string()
+        .to_string())
     }
 
-    fn read_line(&mut self) -> String {
+    fn read_line(&mut self) -> Result<String> {
         let pos = self.pos;
         while self.ch != '\n' {
-            self.read_char();
+            self.read_char()?;
         }
 
-        String::from_utf8_lossy(
+        Ok(String::from_utf8_lossy(
             &self.input[pos..self.pos]
                 .iter()
                 .map(|c| *c as u8)
                 .collect::<Vec<u8>>(),
         )
-        .to_string()
+        .to_string())
     }
 
-    fn read_literal(&mut self) -> String {
+    fn read_literal(&mut self) -> Result<String> {
         let pos = self.pos;
-        self.read_char();
+        self.read_char()?;
         while self.ch != '"' {
-            self.read_char();
+            self.read_char()?;
         }
-        self.read_char();
+        self.read_char()?;
 
-        String::from_utf8_lossy(
+        Ok(String::from_utf8_lossy(
             &self.input[pos..self.pos]
                 .iter()
                 .map(|c| *c as u8)
                 .collect::<Vec<u8>>(),
         )
-        .to_string()
+        .to_string())
     }
 
     pub fn reset(&mut self) {
@@ -106,30 +120,17 @@ impl Lexer {
 
     pub fn peek(&mut self) -> char {
         if self.read_pos >= self.input.len() {
-            return 0 as char;
+            0 as char
         } else {
-            return self.input[self.read_pos];
+            self.input[self.read_pos]
         }
     }
 
-    pub fn next_token(&mut self) -> Result<Token, &'static str> {
+    pub fn next_token(&mut self) -> Result<Token> {
+        self.skip_whitespace()?;
         if self.read_pos >= self.input.len() {
-            println!("breaking");
-            return Err("end of input");
+            bail!(OutofInputError);
         }
-        self.skip_whitespace();
-
-        // println!(
-        //     "{} {} {} {} {} {} {} {}",
-        //     self.pos,
-        //     self.ch,
-        //     self.read_pos,
-        //     self.input.len(),
-        //     self.input[self.pos],
-        //     self.input[self.pos] as u8,
-        //     self.input[self.read_pos],
-        //     self.input[self.read_pos] as u8,
-        // );
 
         let token = match self.ch {
             '+' => Token::Sum,
@@ -144,7 +145,7 @@ impl Lexer {
 
             '<' => {
                 if self.peek() == '=' {
-                    self.read_char();
+                    self.read_char()?;
                     Token::LessThanEqual
                 } else {
                     Token::LessThan
@@ -153,7 +154,7 @@ impl Lexer {
 
             '>' => {
                 if self.peek() == '=' {
-                    self.read_char();
+                    self.read_char()?;
                     Token::GreaterThanEqual
                 } else {
                     Token::GreaterThan
@@ -163,9 +164,9 @@ impl Lexer {
             '!' => {
                 let next_char = self.peek();
                 if next_char == '!' {
-                    return Ok(Token::Comment(self.read_line()));
+                    return Ok(Token::Comment(self.read_line()?));
                 } else if next_char == '=' {
-                    self.read_char();
+                    self.read_char()?;
                     Token::NotEqual
                 } else {
                     unreachable!()
@@ -174,7 +175,7 @@ impl Lexer {
 
             '=' => {
                 if self.peek() == '=' {
-                    self.read_char();
+                    self.read_char()?;
                     Token::Equal
                 } else {
                     unreachable!()
@@ -183,17 +184,17 @@ impl Lexer {
 
             ':' => {
                 if self.peek() == '=' {
-                    self.read_char();
+                    self.read_char()?;
                     Token::DeclareAlt
                 } else {
                     unreachable!()
                 }
             }
 
-            '"' => return Ok(Token::Literal(self.read_literal())),
+            '"' => return Ok(Token::Literal(self.read_literal()?)),
 
             'a'..='z' | 'A'..='Z' | '_' => {
-                let tok = match self.read_ident().as_str() {
+                let tok = match self.read_ident()?.as_str() {
                     "LAKSHMI START" => Token::ProgramStart,
                     "MAGIZHCHI" => Token::ProgramEnd,
                     "DOT" => Token::Print,
@@ -223,19 +224,17 @@ impl Lexer {
                 return Ok(tok);
             }
 
-            '0'..='9' => return Ok(Token::Number(self.read_int())),
+            '0'..='9' => return Ok(Token::Number(self.read_int()?)),
             _ => unreachable!(),
         };
 
-        self.read_char();
+        let _ = self.read_char();
         Ok(token)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::lexer::Token;
-
     use super::Lexer;
     use anyhow::Result;
 
