@@ -40,11 +40,10 @@ impl Lexer {
             return Ok(());
         }
         bail!(OutofInputError)
-        // Err(OutofInputError).into()
     }
 
     fn skip_whitespace(&mut self) -> Result<()> {
-        while self.ch == ' ' || self.ch == '\n' {
+        while self.ch.is_ascii_whitespace() {
             self.read_char()?;
         }
         Ok(())
@@ -65,9 +64,9 @@ impl Lexer {
         .to_string())
     }
 
-    fn read_int(&mut self) -> Result<String> {
+    fn read_int(&mut self) -> Result<i64> {
         let pos = self.pos;
-        while self.ch.is_ascii_digit() {
+        while self.ch.is_ascii_digit() || self.ch == '-' {
             self.read_char()?;
         }
 
@@ -77,7 +76,7 @@ impl Lexer {
                 .map(|c| *c as u8)
                 .collect::<Vec<u8>>(),
         )
-        .to_string())
+        .parse::<i64>()?)
     }
 
     fn read_line(&mut self) -> Result<String> {
@@ -96,15 +95,16 @@ impl Lexer {
     }
 
     fn read_literal(&mut self) -> Result<String> {
-        let pos = self.pos;
         self.read_char()?;
+        let pos = self.pos;
         while self.ch != '"' {
             self.read_char()?;
         }
+        let end_pos = self.pos;
         self.read_char()?;
 
         Ok(String::from_utf8_lossy(
-            &self.input[pos..self.pos]
+            &self.input[pos..end_pos]
                 .iter()
                 .map(|c| *c as u8)
                 .collect::<Vec<u8>>(),
@@ -141,13 +141,16 @@ impl Lexer {
 
     pub fn next_token(&mut self) -> Result<Token> {
         self.skip_whitespace()?;
-        if self.read_pos >= self.input.len() {
-            bail!(OutofInputError);
-        }
 
         let token = match self.ch {
             '+' => Token::Sum,
-            '-' => Token::Sub,
+            '-' => {
+                if self.peek().is_ascii_digit() {
+                    return Ok(Token::Number(self.read_int()?));
+                } else {
+                    Token::Sub
+                }
+            }
             '*' => Token::Mul,
             '/' => Token::Div,
             '%' => Token::Mod,
@@ -419,15 +422,15 @@ mod tests {
             StartDeclare,
             Ident(String::from("ix")),
             Declare,
-            Number(String::from("1")),
+            Number(1),
             SemiColon,
             StartDeclare,
             Ident(String::from("range")),
             Declare,
-            Number(String::from("16")),
+            Number(16),
             SemiColon,
             ForStart,
-            Number(String::from("1")),
+            Number(1),
             ForRangeStart,
             Ident(String::from("range")),
             ForRangeEnd,
@@ -435,12 +438,12 @@ mod tests {
             IfCond,
             Ident(String::from("ix")),
             Mod,
-            Number(String::from("15")),
+            Number(15),
             Equal,
-            Number(String::from("0")),
+            Number(0),
             LeftBrace,
             Print,
-            Literal(String::from(r#""FizzBuzz""#)),
+            Literal(String::from("FizzBuzz")),
             SemiColon,
             RightBrace,
             ElseCond,
@@ -448,12 +451,12 @@ mod tests {
             IfCond,
             Ident(String::from("ix")),
             Mod,
-            Number(String::from("3")),
+            Number(3),
             Equal,
-            Number(String::from("0")),
+            Number(0),
             LeftBrace,
             Print,
-            Literal(String::from(r#""Fizz""#)),
+            Literal(String::from("Fizz")),
             SemiColon,
             RightBrace,
             ElseCond,
@@ -461,12 +464,12 @@ mod tests {
             IfCond,
             Ident(String::from("ix")),
             Mod,
-            Number(String::from("5")),
+            Number(5),
             Equal,
-            Number(String::from("0")),
+            Number(0),
             LeftBrace,
             Print,
-            Literal(String::from(r#""Buzz""#)),
+            Literal(String::from("Buzz")),
             SemiColon,
             RightBrace,
             ElseCond,
@@ -487,7 +490,7 @@ mod tests {
             Assign,
             Ident(String::from("ix")),
             Sum,
-            Number(String::from("1")),
+            Number(1),
             SemiColon,
             Comment(String::from("!! End Loop")),
             RightBrace,

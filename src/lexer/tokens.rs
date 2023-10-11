@@ -1,6 +1,6 @@
 use std::fmt;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 pub enum Token {
     ProgramStart,
     ProgramEnd,
@@ -12,7 +12,7 @@ pub enum Token {
     LeftBrace,
     RightBrace,
 
-    Number(String),
+    Number(i64),
     Ident(String),
     Literal(String),
 
