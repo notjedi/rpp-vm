@@ -507,4 +507,157 @@ mod tests {
         assert!(lexer.next_token().is_err());
         Ok(())
     }
+
+    #[test]
+    fn test_math_ops() -> Result<()> {
+        let program = r#"
+            LAKSHMI START
+            AANDAVAN SOLLRAN addvar ARUNACHALAM SEIYARAN 25 + 15;
+            AANDAVAN SOLLRAN subvar ARUNACHALAM SEIYARAN 25 - 15;
+            AANDAVAN SOLLRAN mulvar ARUNACHALAM SEIYARAN 5 * 5;
+            AANDAVAN SOLLRAN divvar ARUNACHALAM SEIYARAN 5 / 5;
+            AANDAVAN SOLLRAN modvar ARUNACHALAM SEIYARAN 51 % 5;
+            DOT "addvar = " addvar;
+            DOT "subvar = " subvar;
+            DOT "mulvar = " mulvar;
+            DOT "divvar = " divvar;
+            DOT "modvar = " modvar;
+            MAGIZHCHI
+        "#;
+
+        let tokens = vec![
+            ProgramStart,
+            StartDeclare,
+            Ident(String::from("addvar")),
+            Declare,
+            Number(25),
+            Sum,
+            Number(15),
+            SemiColon,
+            StartDeclare,
+            Ident(String::from("subvar")),
+            Declare,
+            Number(25),
+            Sub,
+            Number(15),
+            SemiColon,
+            StartDeclare,
+            Ident(String::from("mulvar")),
+            Declare,
+            Number(5),
+            Mul,
+            Number(5),
+            SemiColon,
+            StartDeclare,
+            Ident(String::from("divvar")),
+            Declare,
+            Number(5),
+            Div,
+            Number(5),
+            SemiColon,
+            StartDeclare,
+            Ident(String::from("modvar")),
+            Declare,
+            Number(51),
+            Mod,
+            Number(5),
+            SemiColon,
+            Print,
+            Literal(String::from("addvar = ")),
+            Ident(String::from("addvar")),
+            SemiColon,
+            Print,
+            Literal(String::from("subvar = ")),
+            Ident(String::from("subvar")),
+            SemiColon,
+            Print,
+            Literal(String::from("mulvar = ")),
+            Ident(String::from("mulvar")),
+            SemiColon,
+            Print,
+            Literal(String::from("divvar = ")),
+            Ident(String::from("divvar")),
+            SemiColon,
+            Print,
+            Literal(String::from("modvar = ")),
+            Ident(String::from("modvar")),
+            SemiColon,
+            ProgramEnd,
+        ];
+
+        let mut lexer = Lexer::new(program.to_string());
+        for token in tokens {
+            let lex_token = lexer.next_token()?;
+            assert_eq!(token, lex_token);
+        }
+        assert!(lexer.next_token().is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn test_while_loop() -> Result<()> {
+        let program = r#"
+            LAKSHMI START
+            DOT "While Loop Example";
+            AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 1;
+            BABA COUNTING STARTS True{
+                DOT ix;
+                ix BHAJJI SAAPDU ix + 1;
+                EN PEAR MANICKAM ix > 5{
+                    DOT "breaking out of loop...";
+                    BLACK SHEEP;
+                }KATHAM KATHAM;
+            }KATHAM KATHAM;
+            MAGIZHCHI
+        "#;
+
+        let tokens = vec![
+            ProgramStart,
+            Print,
+            Literal(String::from("While Loop Example")),
+            SemiColon,
+            StartDeclare,
+            Ident(String::from("ix")),
+            Declare,
+            Number(1),
+            SemiColon,
+            WhileLoop,
+            Ident(String::from("True")),
+            LeftBrace,
+            Print,
+            Ident(String::from("ix")),
+            SemiColon,
+            Ident(String::from("ix")),
+            Assign,
+            Ident(String::from("ix")),
+            Sum,
+            Number(1),
+            SemiColon,
+            IfCond,
+            Ident(String::from("ix")),
+            GreaterThan,
+            Number(5),
+            LeftBrace,
+            Print,
+            Literal(String::from("breaking out of loop...")),
+            SemiColon,
+            BreakLoop,
+            SemiColon,
+            RightBrace,
+            EndBlock,
+            SemiColon,
+            RightBrace,
+            EndBlock,
+            SemiColon,
+            ProgramEnd,
+        ];
+
+        let mut lexer = Lexer::new(program.to_string());
+        for token in tokens {
+            let lex_token = lexer.next_token()?;
+            assert_eq!(token, lex_token);
+        }
+        assert!(lexer.next_token().is_err());
+        Ok(())
+    }
 }
