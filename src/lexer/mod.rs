@@ -833,4 +833,64 @@ mod tests {
         assert!(lexer.next_token().is_err());
         Ok(())
     }
+
+    #[test]
+    fn test_function() -> Result<()> {
+        let program = r#"
+            EN VAZHI THANI VAZHI myfunc_one
+                DOT "Hello from myfunc_one!";
+                AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 100;
+                DOT "returning ix =" ix "to main";
+                IDHU EPDI IRUKKU ix;
+            MARAKKADHINGA
+
+            LAKSHMI START
+            DOT "Hi from main!";
+            y CHUMMA ADHURUDHULA myfunc_one;
+            DOT "Value returned from myfunc_one:" y;
+            MAGIZHCHI
+        "#;
+        let tokens = vec![
+            FuncDeclare,
+            Ident(String::from("myfunc_one")),
+            Print,
+            Literal(String::from("Hello from myfunc_one!")),
+            SemiColon,
+            StartDeclare,
+            Ident(String::from("ix")),
+            Declare,
+            Number(100),
+            SemiColon,
+            Print,
+            Literal(String::from("returning ix =")),
+            Ident(String::from("ix")),
+            Literal(String::from("to main")),
+            SemiColon,
+            FuncReturn,
+            Ident(String::from("ix")),
+            SemiColon,
+            EndFunc,
+            ProgramStart,
+            Print,
+            Literal(String::from("Hi from main!")),
+            SemiColon,
+            Ident(String::from("y")),
+            FuncCall,
+            Ident(String::from("myfunc_one")),
+            SemiColon,
+            Print,
+            Literal(String::from("Value returned from myfunc_one:")),
+            Ident(String::from("y")),
+            SemiColon,
+            ProgramEnd,
+        ];
+
+        let mut lexer = Lexer::new(program.to_string());
+        for token in tokens {
+            let lex_token = lexer.next_token()?;
+            assert_eq!(token, lex_token);
+        }
+        assert!(lexer.next_token().is_err());
+        Ok(())
+    }
 }
