@@ -13,6 +13,12 @@ impl Display for OutofInputError {
 }
 impl Error for OutofInputError {}
 
+#[derive(Debug)]
+enum Number {
+    Int(i64),
+    Float(f64),
+}
+
 pub struct Lexer {
     input: Vec<char>,
     read_pos: usize, // moving reading position
@@ -64,19 +70,38 @@ impl Lexer {
         .to_string())
     }
 
-    fn read_int(&mut self) -> Result<i64> {
+    fn read_number(&mut self) -> Result<Number> {
         let pos = self.pos;
-        while self.ch.is_ascii_digit() || self.ch == '-' {
+        let mut has_dot = false;
+        while self.ch.is_ascii_digit() || self.ch == '-' || (self.ch == '.' && !has_dot) {
+            // if self.ch == '.' {
+            //     has_dot = true;
+            // }
+            has_dot = has_dot || self.ch == '.';
             self.read_char()?;
         }
 
-        Ok(String::from_utf8_lossy(
-            &self.input[pos..self.pos]
-                .iter()
-                .map(|c| *c as u8)
-                .collect::<Vec<u8>>(),
-        )
-        .parse::<i64>()?)
+        if has_dot {
+            Ok(Number::Float(
+                String::from_utf8_lossy(
+                    &self.input[pos..self.pos]
+                        .iter()
+                        .map(|c| *c as u8)
+                        .collect::<Vec<u8>>(),
+                )
+                .parse::<f64>()?,
+            ))
+        } else {
+            Ok(Number::Int(
+                String::from_utf8_lossy(
+                    &self.input[pos..self.pos]
+                        .iter()
+                        .map(|c| *c as u8)
+                        .collect::<Vec<u8>>(),
+                )
+                .parse::<i64>()?,
+            ))
+        }
     }
 
     fn read_line(&mut self) -> Result<String> {
@@ -146,7 +171,10 @@ impl Lexer {
             '+' => Token::Sum,
             '-' => {
                 if self.peek().is_ascii_digit() {
-                    return Ok(Token::Number(self.read_int()?));
+                    match self.read_number()? {
+                        Number::Int(int_num) => return Ok(Token::Number(int_num)),
+                        Number::Float(float_num) => return Ok(Token::Float(float_num)),
+                    }
                 } else {
                     Token::Sub
                 }
@@ -372,8 +400,11 @@ impl Lexer {
                 return Ok(tok);
             }
 
-            '0'..='9' => return Ok(Token::Number(self.read_int()?)),
-            _ => unreachable!(),
+            '0'..='9' => match self.read_number()? {
+                Number::Int(int_num) => return Ok(Token::Number(int_num)),
+                Number::Float(float_num) => return Ok(Token::Float(float_num)),
+            },
+            ch => unreachable!("got character: {}", ch),
         };
 
         let _ = self.read_char();
@@ -648,6 +679,148 @@ mod tests {
             SemiColon,
             RightBrace,
             EndBlock,
+            SemiColon,
+            ProgramEnd,
+        ];
+
+        let mut lexer = Lexer::new(program.to_string());
+        for token in tokens {
+            let lex_token = lexer.next_token()?;
+            assert_eq!(token, lex_token);
+        }
+        assert!(lexer.next_token().is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn test_logical_ops() -> Result<()> {
+        let program = r#"
+            LAKSHMI START
+            AANDAVAN SOLLRAN x ARUNACHALAM SEIYARAN 5.5;
+            AANDAVAN SOLLRAN y ARUNACHALAM SEIYARAN 15;
+            AANDAVAN SOLLRAN a ARUNACHALAM SEIYARAN x;
+            AANDAVAN SOLLRAN b ARUNACHALAM SEIYARAN y;
+            DOT "This is Rajini++. Every command is a famous dialogues of Rajinikanth!";
+            DOT "Addition Output:" x "+" y "=" x+y;
+            DOT "Assigning new value to y. Setting y = 100";
+            y BHAJJI SAAPDU 100;
+            DOT "New y = " y;
+            AANDAVAN SOLLRAN boolvar ARUNACHALAM SEIYARAN True;
+            DOT "boolvar = " boolvar;
+            DOT "x: " x "y: " y;
+            DOT "a: " a "b: " b;
+            DOT "x > y: " x > y;
+            DOT "x >= y: " x >= y;
+            DOT "x < y: " x < y;
+            DOT "x <= y: " x <= y;
+            DOT "x == a: " x == a;
+            DOT "x != b: " x != b;
+            MAGIZHCHI
+        "#;
+        let tokens = vec![
+            ProgramStart,
+            StartDeclare,
+            Ident(String::from("x")),
+            Declare,
+            Float(5.5),
+            SemiColon,
+            StartDeclare,
+            Ident(String::from("y")),
+            Declare,
+            Number(15),
+            SemiColon,
+            StartDeclare,
+            Ident(String::from("a")),
+            Declare,
+            Ident(String::from("x")),
+            SemiColon,
+            StartDeclare,
+            Ident(String::from("b")),
+            Declare,
+            Ident(String::from("y")),
+            SemiColon,
+            Print,
+            Literal(String::from(
+                "This is Rajini++. Every command is a famous dialogues of Rajinikanth!",
+            )),
+            SemiColon,
+            Print,
+            Literal(String::from("Addition Output:")),
+            Ident(String::from("x")),
+            Literal(String::from("+")),
+            Ident(String::from("y")),
+            Literal(String::from("=")),
+            Ident(String::from("x")),
+            Sum,
+            Ident(String::from("y")),
+            SemiColon,
+            Print,
+            Literal(String::from("Assigning new value to y. Setting y = 100")),
+            SemiColon,
+            Ident(String::from("y")),
+            Assign,
+            Number(100),
+            SemiColon,
+            Print,
+            Literal(String::from("New y = ")),
+            Ident(String::from("y")),
+            SemiColon,
+            StartDeclare,
+            Ident(String::from("boolvar")),
+            Declare,
+            Ident(String::from("True")),
+            SemiColon,
+            Print,
+            Literal(String::from("boolvar = ")),
+            Ident(String::from("boolvar")),
+            SemiColon,
+            Print,
+            Literal(String::from("x: ")),
+            Ident(String::from("x")),
+            Literal(String::from("y: ")),
+            Ident(String::from("y")),
+            SemiColon,
+            Print,
+            Literal(String::from("a: ")),
+            Ident(String::from("a")),
+            Literal(String::from("b: ")),
+            Ident(String::from("b")),
+            SemiColon,
+            Print,
+            Literal(String::from("x > y: ")),
+            Ident(String::from("x")),
+            GreaterThan,
+            Ident(String::from("y")),
+            SemiColon,
+            Print,
+            Literal(String::from("x >= y: ")),
+            Ident(String::from("x")),
+            GreaterThanEqual,
+            Ident(String::from("y")),
+            SemiColon,
+            Print,
+            Literal(String::from("x < y: ")),
+            Ident(String::from("x")),
+            LessThan,
+            Ident(String::from("y")),
+            SemiColon,
+            Print,
+            Literal(String::from("x <= y: ")),
+            Ident(String::from("x")),
+            LessThanEqual,
+            Ident(String::from("y")),
+            SemiColon,
+            Print,
+            Literal(String::from("x == a: ")),
+            Ident(String::from("x")),
+            Equal,
+            Ident(String::from("a")),
+            SemiColon,
+            Print,
+            Literal(String::from("x != b: ")),
+            Ident(String::from("x")),
+            NotEqual,
+            Ident(String::from("b")),
             SemiColon,
             ProgramEnd,
         ];

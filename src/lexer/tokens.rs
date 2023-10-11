@@ -13,6 +13,7 @@ pub enum Token {
     RightBrace,
 
     Number(i64),
+    Float(f64),
     Ident(String),
     Literal(String),
 
@@ -70,6 +71,7 @@ impl Token {
             Token::ProgramEnd => "MAGIZHCHI".to_string(),
 
             Token::Number(num) => num.to_string(),
+            Token::Float(num) => num.to_string(),
             Token::Ident(ident) => ident.to_string(),
             Token::Literal(literal) => literal.to_string(),
 
