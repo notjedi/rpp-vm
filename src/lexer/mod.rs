@@ -19,19 +19,21 @@ enum Number {
     Float(f64),
 }
 
-pub struct Lexer {
-    input: Vec<char>,
+pub struct Lexer<'a> {
+    input: &'a [u8],
+    input_str: &'a str,
     read_pos: usize, // moving reading position
     pos: usize,      // reading position
     ch: char,
 }
 
-impl Lexer {
-    pub fn new(input: String) -> Self {
+impl<'a> Lexer<'a> {
+    pub fn new(input: &'a str) -> Self {
         let mut lexer = Self {
-            input: input.chars().collect(),
-            read_pos: 0,
+            input_str: input,
+            input: input.as_bytes(),
             pos: 0,
+            read_pos: 0,
             ch: 0 as char,
         };
         let _ = lexer.read_char();
@@ -40,7 +42,7 @@ impl Lexer {
 
     fn read_char(&mut self) -> Result<()> {
         if self.read_pos < self.input.len() {
-            self.ch = self.input[self.read_pos];
+            self.ch = self.input[self.read_pos] as char;
             self.pos = self.read_pos;
             self.read_pos += 1;
             return Ok(());
@@ -55,71 +57,43 @@ impl Lexer {
         Ok(())
     }
 
-    fn read_ident(&mut self) -> Result<String> {
+    fn read_ident(&mut self) -> Result<&'a str> {
         let pos = self.pos;
         while self.ch.is_ascii_alphabetic() || self.ch == '_' {
             self.read_char()?;
         }
 
-        Ok(String::from_utf8_lossy(
-            &self.input[pos..self.pos]
-                .iter()
-                .map(|c| *c as u8)
-                .collect::<Vec<u8>>(),
-        )
-        .to_string())
+        Ok(&self.input_str[pos..self.pos])
     }
 
     fn read_number(&mut self) -> Result<Number> {
         let pos = self.pos;
         let mut has_dot = false;
         while self.ch.is_ascii_digit() || self.ch == '-' || (self.ch == '.' && !has_dot) {
-            // if self.ch == '.' {
-            //     has_dot = true;
-            // }
-            has_dot = has_dot || self.ch == '.';
+            if self.ch == '.' {
+                has_dot = true;
+            }
+            // has_dot = has_dot || self.ch == '.';
             self.read_char()?;
         }
 
         if has_dot {
-            Ok(Number::Float(
-                String::from_utf8_lossy(
-                    &self.input[pos..self.pos]
-                        .iter()
-                        .map(|c| *c as u8)
-                        .collect::<Vec<u8>>(),
-                )
-                .parse::<f64>()?,
-            ))
+            Ok(Number::Float(self.input_str[pos..self.pos].parse::<f64>()?))
         } else {
-            Ok(Number::Int(
-                String::from_utf8_lossy(
-                    &self.input[pos..self.pos]
-                        .iter()
-                        .map(|c| *c as u8)
-                        .collect::<Vec<u8>>(),
-                )
-                .parse::<i64>()?,
-            ))
+            Ok(Number::Int(self.input_str[pos..self.pos].parse::<i64>()?))
         }
     }
 
-    fn read_line(&mut self) -> Result<String> {
+    fn read_line(&mut self) -> Result<&'a str> {
         let pos = self.pos;
         while self.ch != '\n' {
             self.read_char()?;
         }
 
-        Ok(String::from_utf8_lossy(
-            &self.input[pos..self.pos]
-                .iter()
-                .map(|c| *c as u8)
-                .collect::<Vec<u8>>(),
-        )
-        .to_string())
+        Ok(&self.input_str[pos..self.pos])
     }
 
-    fn read_literal(&mut self) -> Result<String> {
+    fn read_literal(&mut self) -> Result<&'a str> {
         self.read_char()?;
         let pos = self.pos;
         while self.ch != '"' {
@@ -128,16 +102,10 @@ impl Lexer {
         let end_pos = self.pos;
         self.read_char()?;
 
-        Ok(String::from_utf8_lossy(
-            &self.input[pos..end_pos]
-                .iter()
-                .map(|c| *c as u8)
-                .collect::<Vec<u8>>(),
-        )
-        .to_string())
+        Ok(&self.input_str[pos..end_pos])
     }
 
-    fn peek_next_word(&mut self) -> Result<String> {
+    fn peek_next_word(&mut self) -> Result<&'a str> {
         let read_pos = self.read_pos;
         let pos = self.pos;
         let ch = self.ch;
@@ -160,7 +128,7 @@ impl Lexer {
         if self.read_pos >= self.input.len() {
             0 as char
         } else {
-            self.input[self.read_pos]
+            self.input[self.read_pos] as char
         }
     }
 
@@ -238,7 +206,8 @@ impl Lexer {
             '"' => return Ok(Token::Literal(self.read_literal()?)),
 
             'a'..='z' | 'A'..='Z' | '_' => {
-                let tok = match self.read_ident()?.as_str() {
+                let ident = self.read_ident()?;
+                let tok = match ident {
                     "MARAKKADHINGA" => Token::EndFunc,
                     "MAGIZHCHI" => Token::ProgramEnd,
                     "NAA" => Token::ForStart,
@@ -395,7 +364,7 @@ impl Lexer {
                         }
                     }
 
-                    ident => Token::Ident(ident.to_string()),
+                    ident => Token::Ident(ident),
                 };
                 return Ok(tok);
             }
@@ -449,64 +418,64 @@ mod tests {
 
         let tokens = vec![
             ProgramStart,
-            Comment(String::from("!! declare variables")),
+            Comment("!! declare variables"),
             StartDeclare,
-            Ident(String::from("ix")),
+            Ident("ix"),
             Declare,
             Number(1),
             SemiColon,
             StartDeclare,
-            Ident(String::from("range")),
+            Ident("range"),
             Declare,
             Number(16),
             SemiColon,
             ForStart,
             Number(1),
             ForRangeStart,
-            Ident(String::from("range")),
+            Ident("range"),
             ForRangeEnd,
             LeftBrace,
             IfCond,
-            Ident(String::from("ix")),
+            Ident("ix"),
             Mod,
             Number(15),
             Equal,
             Number(0),
             LeftBrace,
             Print,
-            Literal(String::from("FizzBuzz")),
+            Literal("FizzBuzz"),
             SemiColon,
             RightBrace,
             ElseCond,
             LeftBrace,
             IfCond,
-            Ident(String::from("ix")),
+            Ident("ix"),
             Mod,
             Number(3),
             Equal,
             Number(0),
             LeftBrace,
             Print,
-            Literal(String::from("Fizz")),
+            Literal("Fizz"),
             SemiColon,
             RightBrace,
             ElseCond,
             LeftBrace,
             IfCond,
-            Ident(String::from("ix")),
+            Ident("ix"),
             Mod,
             Number(5),
             Equal,
             Number(0),
             LeftBrace,
             Print,
-            Literal(String::from("Buzz")),
+            Literal("Buzz"),
             SemiColon,
             RightBrace,
             ElseCond,
             LeftBrace,
             Print,
-            Ident(String::from("ix")),
+            Ident("ix"),
             SemiColon,
             RightBrace,
             EndBlock,
@@ -517,20 +486,20 @@ mod tests {
             RightBrace,
             EndBlock,
             SemiColon,
-            Ident(String::from("ix")),
+            Ident("ix"),
             Assign,
-            Ident(String::from("ix")),
+            Ident("ix"),
             Sum,
             Number(1),
             SemiColon,
-            Comment(String::from("!! End Loop")),
+            Comment("!! End Loop"),
             RightBrace,
             EndBlock,
             SemiColon,
             ProgramEnd,
         ];
 
-        let mut lexer = Lexer::new(program.to_string());
+        let mut lexer = Lexer::new(program);
         for token in tokens {
             let lex_token = lexer.next_token()?;
             assert_eq!(token, lex_token);
@@ -559,64 +528,64 @@ mod tests {
         let tokens = vec![
             ProgramStart,
             StartDeclare,
-            Ident(String::from("addvar")),
+            Ident("addvar"),
             Declare,
             Number(25),
             Sum,
             Number(15),
             SemiColon,
             StartDeclare,
-            Ident(String::from("subvar")),
+            Ident("subvar"),
             Declare,
             Number(25),
             Sub,
             Number(15),
             SemiColon,
             StartDeclare,
-            Ident(String::from("mulvar")),
+            Ident("mulvar"),
             Declare,
             Number(5),
             Mul,
             Number(5),
             SemiColon,
             StartDeclare,
-            Ident(String::from("divvar")),
+            Ident("divvar"),
             Declare,
             Number(5),
             Div,
             Number(5),
             SemiColon,
             StartDeclare,
-            Ident(String::from("modvar")),
+            Ident("modvar"),
             Declare,
             Number(51),
             Mod,
             Number(5),
             SemiColon,
             Print,
-            Literal(String::from("addvar = ")),
-            Ident(String::from("addvar")),
+            Literal("addvar = "),
+            Ident("addvar"),
             SemiColon,
             Print,
-            Literal(String::from("subvar = ")),
-            Ident(String::from("subvar")),
+            Literal("subvar = "),
+            Ident("subvar"),
             SemiColon,
             Print,
-            Literal(String::from("mulvar = ")),
-            Ident(String::from("mulvar")),
+            Literal("mulvar = "),
+            Ident("mulvar"),
             SemiColon,
             Print,
-            Literal(String::from("divvar = ")),
-            Ident(String::from("divvar")),
+            Literal("divvar = "),
+            Ident("divvar"),
             SemiColon,
             Print,
-            Literal(String::from("modvar = ")),
-            Ident(String::from("modvar")),
+            Literal("modvar = "),
+            Ident("modvar"),
             SemiColon,
             ProgramEnd,
         ];
 
-        let mut lexer = Lexer::new(program.to_string());
+        let mut lexer = Lexer::new(program);
         for token in tokens {
             let lex_token = lexer.next_token()?;
             assert_eq!(token, lex_token);
@@ -645,32 +614,32 @@ mod tests {
         let tokens = vec![
             ProgramStart,
             Print,
-            Literal(String::from("While Loop Example")),
+            Literal("While Loop Example"),
             SemiColon,
             StartDeclare,
-            Ident(String::from("ix")),
+            Ident("ix"),
             Declare,
             Number(1),
             SemiColon,
             WhileLoop,
-            Ident(String::from("True")),
+            Ident("True"),
             LeftBrace,
             Print,
-            Ident(String::from("ix")),
+            Ident("ix"),
             SemiColon,
-            Ident(String::from("ix")),
+            Ident("ix"),
             Assign,
-            Ident(String::from("ix")),
+            Ident("ix"),
             Sum,
             Number(1),
             SemiColon,
             IfCond,
-            Ident(String::from("ix")),
+            Ident("ix"),
             GreaterThan,
             Number(5),
             LeftBrace,
             Print,
-            Literal(String::from("breaking out of loop...")),
+            Literal("breaking out of loop..."),
             SemiColon,
             BreakLoop,
             SemiColon,
@@ -683,7 +652,7 @@ mod tests {
             ProgramEnd,
         ];
 
-        let mut lexer = Lexer::new(program.to_string());
+        let mut lexer = Lexer::new(program);
         for token in tokens {
             let lex_token = lexer.next_token()?;
             assert_eq!(token, lex_token);
@@ -720,112 +689,110 @@ mod tests {
         let tokens = vec![
             ProgramStart,
             StartDeclare,
-            Ident(String::from("x")),
+            Ident("x"),
             Declare,
             Float(5.5),
             SemiColon,
             StartDeclare,
-            Ident(String::from("y")),
+            Ident("y"),
             Declare,
             Number(15),
             SemiColon,
             StartDeclare,
-            Ident(String::from("a")),
+            Ident("a"),
             Declare,
-            Ident(String::from("x")),
+            Ident("x"),
             SemiColon,
             StartDeclare,
-            Ident(String::from("b")),
+            Ident("b"),
             Declare,
-            Ident(String::from("y")),
+            Ident("y"),
             SemiColon,
             Print,
-            Literal(String::from(
-                "This is Rajini++. Every command is a famous dialogues of Rajinikanth!",
-            )),
+            Literal("This is Rajini++. Every command is a famous dialogues of Rajinikanth!"),
             SemiColon,
             Print,
-            Literal(String::from("Addition Output:")),
-            Ident(String::from("x")),
-            Literal(String::from("+")),
-            Ident(String::from("y")),
-            Literal(String::from("=")),
-            Ident(String::from("x")),
+            Literal("Addition Output:"),
+            Ident("x"),
+            Literal("+"),
+            Ident("y"),
+            Literal("="),
+            Ident("x"),
             Sum,
-            Ident(String::from("y")),
+            Ident("y"),
             SemiColon,
             Print,
-            Literal(String::from("Assigning new value to y. Setting y = 100")),
+            Literal("Assigning new value to y. Setting y = 100"),
             SemiColon,
-            Ident(String::from("y")),
+            Ident("y"),
             Assign,
             Number(100),
             SemiColon,
             Print,
-            Literal(String::from("New y = ")),
-            Ident(String::from("y")),
+            Literal("New y = "),
+            Ident("y"),
             SemiColon,
             StartDeclare,
-            Ident(String::from("boolvar")),
+            Ident("boolvar"),
             Declare,
-            Ident(String::from("True")),
+            Ident("True"),
             SemiColon,
             Print,
-            Literal(String::from("boolvar = ")),
-            Ident(String::from("boolvar")),
+            Literal("boolvar = "),
+            Ident("boolvar"),
             SemiColon,
             Print,
-            Literal(String::from("x: ")),
-            Ident(String::from("x")),
-            Literal(String::from("y: ")),
-            Ident(String::from("y")),
+            Literal("x: "),
+            Ident("x"),
+            Literal("y: "),
+            Ident("y"),
             SemiColon,
             Print,
-            Literal(String::from("a: ")),
-            Ident(String::from("a")),
-            Literal(String::from("b: ")),
-            Ident(String::from("b")),
+            Literal("a: "),
+            Ident("a"),
+            Literal("b: "),
+            Ident("b"),
             SemiColon,
             Print,
-            Literal(String::from("x > y: ")),
-            Ident(String::from("x")),
+            Literal("x > y: "),
+            Ident("x"),
             GreaterThan,
-            Ident(String::from("y")),
+            Ident("y"),
             SemiColon,
             Print,
-            Literal(String::from("x >= y: ")),
-            Ident(String::from("x")),
+            Literal("x >= y: "),
+            Ident("x"),
             GreaterThanEqual,
-            Ident(String::from("y")),
+            Ident("y"),
             SemiColon,
             Print,
-            Literal(String::from("x < y: ")),
-            Ident(String::from("x")),
+            Literal("x < y: "),
+            Ident("x"),
             LessThan,
-            Ident(String::from("y")),
+            Ident("y"),
             SemiColon,
             Print,
-            Literal(String::from("x <= y: ")),
-            Ident(String::from("x")),
+            Literal("x <= y: "),
+            Ident("x"),
             LessThanEqual,
-            Ident(String::from("y")),
+            Ident("y"),
             SemiColon,
             Print,
-            Literal(String::from("x == a: ")),
-            Ident(String::from("x")),
+            Literal("x == a: "),
+            Ident("x"),
             Equal,
-            Ident(String::from("a")),
+            Ident("a"),
             SemiColon,
             Print,
-            Literal(String::from("x != b: ")),
-            Ident(String::from("x")),
+            Literal("x != b: "),
+            Ident("x"),
             NotEqual,
-            Ident(String::from("b")),
+            Ident("b"),
             SemiColon,
             ProgramEnd,
         ];
 
-        let mut lexer = Lexer::new(program.to_string());
+        let mut lexer = Lexer::new(program);
         for token in tokens {
             let lex_token = lexer.next_token()?;
             assert_eq!(token, lex_token);
@@ -852,40 +819,40 @@ mod tests {
         "#;
         let tokens = vec![
             FuncDeclare,
-            Ident(String::from("myfunc_one")),
+            Ident("myfunc_one"),
             Print,
-            Literal(String::from("Hello from myfunc_one!")),
+            Literal("Hello from myfunc_one!"),
             SemiColon,
             StartDeclare,
-            Ident(String::from("ix")),
+            Ident("ix"),
             Declare,
             Number(100),
             SemiColon,
             Print,
-            Literal(String::from("returning ix =")),
-            Ident(String::from("ix")),
-            Literal(String::from("to main")),
+            Literal("returning ix ="),
+            Ident("ix"),
+            Literal("to main"),
             SemiColon,
             FuncReturn,
-            Ident(String::from("ix")),
+            Ident("ix"),
             SemiColon,
             EndFunc,
             ProgramStart,
             Print,
-            Literal(String::from("Hi from main!")),
+            Literal("Hi from main!"),
             SemiColon,
-            Ident(String::from("y")),
+            Ident("y"),
             FuncCall,
-            Ident(String::from("myfunc_one")),
+            Ident("myfunc_one"),
             SemiColon,
             Print,
-            Literal(String::from("Value returned from myfunc_one:")),
-            Ident(String::from("y")),
+            Literal("Value returned from myfunc_one:"),
+            Ident("y"),
             SemiColon,
             ProgramEnd,
         ];
 
-        let mut lexer = Lexer::new(program.to_string());
+        let mut lexer = Lexer::new(program);
         for token in tokens {
             let lex_token = lexer.next_token()?;
             assert_eq!(token, lex_token);

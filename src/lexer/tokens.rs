@@ -1,10 +1,10 @@
 use std::fmt;
 
 #[derive(Debug, PartialEq)]
-pub enum Token {
+pub enum Token<'a> {
     ProgramStart,
     ProgramEnd,
-    Comment(String),
+    Comment(&'a str),
 
     Print,
 
@@ -14,8 +14,8 @@ pub enum Token {
 
     Number(i64),
     Float(f64),
-    Ident(String),
-    Literal(String),
+    Ident(&'a str),
+    Literal(&'a str),
 
     BoolTrue,
     BoolFalse,
@@ -58,13 +58,13 @@ pub enum Token {
     Illegal,
 }
 
-impl fmt::Display for Token {
+impl<'a> fmt::Display for Token<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self.get_name())
     }
 }
 
-impl Token {
+impl<'a> Token<'a> {
     fn get_name(&self) -> String {
         match self {
             Token::ProgramStart => String::from("LAKSHMI START"),
@@ -118,8 +118,8 @@ impl Token {
     }
 }
 
-impl From<&str> for Token {
-    fn from(value: &str) -> Self {
+impl<'a> From<&'a str> for Token<'a> {
+    fn from(value: &'a str) -> Token<'a> {
         match value {
             "LAKSHMI START" => Token::ProgramStart,
             "MAGIZHCHI" => Token::ProgramEnd,
@@ -162,7 +162,7 @@ impl From<&str> for Token {
             "IDHU EPDI IRUKKU" => Token::FuncReturn,
             "CHUMMA ADHURUDHULA" => Token::FuncCall,
 
-            _ => Token::Literal(value.to_string()),
+            _ => Token::Literal(value),
         }
     }
 }
