@@ -1,0 +1,85 @@
+program
+    : functions main
+    ;
+
+functions
+    : functions function
+    | NULL
+    ;
+
+function
+    : FUNC_DECLARE func_name statements END_FUNC
+    ;
+
+func_name
+    : WORD
+    ;
+
+statements
+    : statements statement
+    | NULL
+    ;
+
+statement
+    : IF_COND logical_expression L_BRACE statements R_BRACE END_BLOCK SEMI_COLON
+    | IF_COND logical_expression L_BRACE statements R_BRACE
+    | BREAK_LOOP SEMI_COLON
+    | FOR_START forvar FOR_RANGE_START forvar FOR_RANGE_END
+    | WHILE_LOOP expression L_BRACE statements R_BRACE END_BLOCK SEMI_COLON
+    | PRINT printexprs SEMI_COLON
+    | expression SEMI_COLON
+    | PRINT printexprs SEMI_COLON
+    | FUNC_RETURN expression SEMI_COLON
+    | FUNC_CALL func_name SEMI_COLON
+    | variable FUNC_CALL func_name SEMI_COLON
+    | START_DECLARE variable DECLARE expression SEMI_COLON
+    | START_DECLARE variable DECLARE_ALT expression SEMI_COLON
+    | variable ASSIGN expression SEMI_COLON
+    ;
+
+logical_expression
+    : expression logicalop expression
+    ;
+
+forvar
+    : NUMBER
+    | WORD
+    ;
+
+expression
+    : expression mathop expression #  precedence="MATHOP"
+    | expression logicalop expression
+    | SUB expression
+    | SUM expression
+    | NUMBER
+    | BOOL_TRUE
+    | BOOL_FALSE
+    | STRING
+    | WORD
+    ;
+
+printexprs
+    : printexprs expression # precedence="NOOP"
+    | NULL
+    ;
+
+variable
+    : WORD
+    ;
+
+logicalop
+    : GT
+    | GTE
+    | LT
+    | LTE
+    | EQ
+    | NEQ
+    ;
+
+mathop
+    : SUM
+    | SUB
+    | MUL
+    | DIV
+    | MOD
+    ;
