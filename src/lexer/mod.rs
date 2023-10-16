@@ -9,14 +9,16 @@ use std::{
 
 #[derive(Debug)]
 pub enum LexError {
-    OutofInputError,
+    OutOfInput,
+    UnexpectedWord,
     UnexpectedChar(char),
 }
 
 impl Display for LexError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::OutofInputError => write!(f, "OutofInputError"),
+            Self::OutOfInput => write!(f, "OutofInputError"),
+            Self::UnexpectedWord => write!(f, "UnexpectedWord"),
             Self::UnexpectedChar(ch) => write!(f, "UnexpectedChar({})", ch),
         }
     }
@@ -58,7 +60,7 @@ impl<'a> Lexer<'a> {
             self.read_pos += 1;
             return Ok(());
         }
-        bail!(LexError::OutofInputError)
+        bail!(LexError::OutOfInput)
     }
 
     fn skip_whitespace(&mut self) -> Result<()> {
@@ -130,9 +132,10 @@ impl<'a> Lexer<'a> {
         next_word
     }
 
-    fn skip_next_word(&mut self) {
-        let _ = self.skip_whitespace();
-        let _ = self.read_ident();
+    fn skip_next_word(&mut self) -> Result<()> {
+        self.skip_whitespace()?;
+        self.read_ident()?;
+        Ok(())
     }
 
     pub fn peek(&mut self) -> char {
@@ -229,149 +232,149 @@ impl<'a> Lexer<'a> {
 
                     "LAKSHMI" => {
                         if self.peek_next_word().is_ok_and(|x| x == "START") {
-                            self.skip_next_word();
+                            self.skip_next_word()?;
                             Token::ProgramStart
                         } else {
-                            Token::Illegal
+                            bail!(LexError::UnexpectedWord)
                         }
                     }
                     "AANDAVAN" => {
                         if self.peek_next_word().is_ok_and(|x| x == "SOLLRAN") {
-                            self.skip_next_word();
+                            self.skip_next_word()?;
                             Token::StartDeclare
                         } else {
-                            Token::Illegal
+                            bail!(LexError::UnexpectedWord)
                         }
                     }
                     "ARUNACHALAM" => {
                         if self.peek_next_word().is_ok_and(|x| x == "SEIYARAN") {
-                            self.skip_next_word();
+                            self.skip_next_word()?;
                             Token::Declare
                         } else {
-                            Token::Illegal
+                            bail!(LexError::UnexpectedWord)
                         }
                     }
                     "BHAJJI" => {
                         if self.peek_next_word().is_ok_and(|x| x == "SAAPDU") {
-                            self.skip_next_word();
+                            self.skip_next_word()?;
                             Token::Assign
                         } else {
-                            Token::Illegal
+                            bail!(LexError::UnexpectedWord)
                         }
                     }
                     "THADAVA" => {
                         if self.peek_next_word().is_ok_and(|x| x == "SONNA") {
-                            self.skip_next_word();
+                            self.skip_next_word()?;
                             if self.peek_next_word().is_ok_and(|x| x == "MADHRI") {
-                                self.skip_next_word();
+                                self.skip_next_word()?;
                                 Token::ForRangeEnd
                             } else {
                                 Token::ForRangeStart
                             }
                         } else {
-                            Token::Illegal
+                            bail!(LexError::UnexpectedWord)
                         }
                     }
                     "KATHAM" => {
                         if self.peek_next_word().is_ok_and(|x| x == "KATHAM") {
-                            self.skip_next_word();
+                            self.skip_next_word()?;
                             Token::EndBlock
                         } else {
-                            Token::Illegal
+                            bail!(LexError::UnexpectedWord)
                         }
                     }
                     "BLACK" => {
                         if self.peek_next_word().is_ok_and(|x| x == "SHEEP") {
-                            self.skip_next_word();
+                            self.skip_next_word()?;
                             Token::BreakLoop
                         } else {
-                            Token::Illegal
+                            bail!(LexError::UnexpectedWord)
                         }
                     }
                     "CHUMMA" => {
                         if self.peek_next_word().is_ok_and(|x| x == "ADHURUDHULA") {
-                            self.skip_next_word();
+                            self.skip_next_word()?;
                             Token::FuncCall
                         } else {
-                            Token::Illegal
+                            bail!(LexError::UnexpectedWord)
                         }
                     }
 
                     // i'm crying inside after writing this
                     "EN" => {
                         if self.peek_next_word().is_ok_and(|x| x == "PEAR") {
-                            self.skip_next_word();
+                            self.skip_next_word()?;
                             if self.peek_next_word().is_ok_and(|x| x == "MANICKAM") {
-                                self.skip_next_word();
+                                self.skip_next_word()?;
                                 Token::IfCond
                             } else {
-                                Token::Illegal
+                                bail!(LexError::UnexpectedWord)
                             }
                         } else if self.peek_next_word().is_ok_and(|x| x == "VAZHI") {
-                            self.skip_next_word();
+                            self.skip_next_word()?;
                             if self.peek_next_word().is_ok_and(|x| x == "THANI") {
-                                self.skip_next_word();
+                                self.skip_next_word()?;
                                 if self.peek_next_word().is_ok_and(|x| x == "VAZHI") {
-                                    self.skip_next_word();
+                                    self.skip_next_word()?;
                                     Token::FuncDeclare
                                 } else {
-                                    Token::Illegal
+                                    bail!(LexError::UnexpectedWord)
                                 }
                             } else {
-                                Token::Illegal
+                                bail!(LexError::UnexpectedWord)
                             }
                         } else {
-                            Token::Illegal
+                            bail!(LexError::UnexpectedWord)
                         }
                     }
 
                     // i'm crying inside after writing this
                     "BABA" => {
                         if self.peek_next_word().is_ok_and(|x| x == "COUNTING") {
-                            self.skip_next_word();
+                            self.skip_next_word()?;
                             if self.peek_next_word().is_ok_and(|x| x == "STARTS") {
-                                self.skip_next_word();
+                                self.skip_next_word()?;
                                 Token::WhileLoop
                             } else {
-                                Token::Illegal
+                                bail!(LexError::UnexpectedWord)
                             }
                         } else {
-                            Token::Illegal
+                            bail!(LexError::UnexpectedWord)
                         }
                     }
 
                     // i'm crying inside after writing this
                     "IDHU" => {
                         if self.peek_next_word().is_ok_and(|x| x == "EPDI") {
-                            self.skip_next_word();
+                            self.skip_next_word()?;
                             if self.peek_next_word().is_ok_and(|x| x == "IRUKKU") {
-                                self.skip_next_word();
+                                self.skip_next_word()?;
                                 Token::FuncReturn
                             } else {
-                                Token::Illegal
+                                bail!(LexError::UnexpectedWord)
                             }
                         } else {
-                            Token::Illegal
+                            bail!(LexError::UnexpectedWord)
                         }
                     }
 
                     // i'm crying inside after writing this
                     "ENAKKU" => {
                         if self.peek_next_word().is_ok_and(|x| x == "INNURU") {
-                            self.skip_next_word();
+                            self.skip_next_word()?;
                             if self.peek_next_word().is_ok_and(|x| x == "PEAR") {
-                                self.skip_next_word();
+                                self.skip_next_word()?;
                                 if self.peek_next_word().is_ok_and(|x| x == "IRUKKU") {
-                                    self.skip_next_word();
+                                    self.skip_next_word()?;
                                     Token::ElseCond
                                 } else {
-                                    Token::Illegal
+                                    bail!(LexError::UnexpectedWord)
                                 }
                             } else {
-                                Token::Illegal
+                                bail!(LexError::UnexpectedWord)
                             }
                         } else {
-                            Token::Illegal
+                            bail!(LexError::UnexpectedWord)
                         }
                     }
 

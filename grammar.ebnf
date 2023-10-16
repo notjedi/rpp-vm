@@ -7,6 +7,10 @@ functions
     | NULL
     ;
 
+main
+    : PGM_START statements PGM_END
+    ;
+
 function
     : FUNC_DECLARE func_name statements END_FUNC
     ;
