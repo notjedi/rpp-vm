@@ -1,6 +1,6 @@
 use std::fmt;
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Token<'a> {
     ProgramStart,
     ProgramEnd,
@@ -54,6 +54,27 @@ pub enum Token<'a> {
     EndFunc,
     FuncReturn,
     FuncCall,
+}
+
+impl<'a> Token<'a> {
+    pub fn is_mathop(token: &Token) -> bool {
+        match token {
+            Token::Sum | Token::Sub | Token::Mul | Token::Div | Token::Mod => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_logicalop(token: &Token) -> bool {
+        match token {
+            Token::GreaterThan
+            | Token::GreaterThanEqual
+            | Token::LessThan
+            | Token::LessThanEqual
+            | Token::Equal
+            | Token::NotEqual => true,
+            _ => false,
+        }
+    }
 }
 
 impl<'a> fmt::Display for Token<'a> {

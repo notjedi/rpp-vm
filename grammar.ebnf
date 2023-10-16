@@ -27,7 +27,6 @@ statements
 statement
     | BREAK_LOOP SEMI_COLON
     | PRINT printexprs SEMI_COLON
-    | PRINT printexprs SEMI_COLON
     | FUNC_CALL func_name SEMI_COLON
     | FUNC_RETURN expression SEMI_COLON
     | START_DECLARE variable DECLARE expression SEMI_COLON
@@ -35,7 +34,7 @@ statement
     | FOR_START forvar FOR_RANGE_START forvar FOR_RANGE_END
     | START_DECLARE variable DECLARE_ALT expression SEMI_COLON
     | WHILE_LOOP expression L_BRACE statements R_BRACE END_BLOCK SEMI_COLON
-    : IF_COND logical_expression L_BRACE statements R_BRACE END_BLOCK SEMI_COLON
+    | IF_COND logical_expression L_BRACE statements R_BRACE END_BLOCK SEMI_COLON
     | expression SEMI_COLON
     | variable ASSIGN expression SEMI_COLON
     | variable FUNC_CALL func_name SEMI_COLON
