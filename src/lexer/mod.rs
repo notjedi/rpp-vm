@@ -2,16 +2,27 @@ mod tokens;
 pub use tokens::Token;
 
 use anyhow::{bail, Result};
-use std::{error::Error, fmt::Display};
+use std::{
+    error::Error,
+    fmt::{Debug, Display},
+};
 
 #[derive(Debug)]
-pub struct OutofInputError;
-impl Display for OutofInputError {
+pub enum LexError {
+    OutofInputError,
+    UnexpectedChar(char),
+}
+
+impl Display for LexError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ran out of input")
+        match self {
+            Self::OutofInputError => write!(f, "OutofInputError"),
+            Self::UnexpectedChar(ch) => write!(f, "UnexpectedChar({})", ch),
+        }
     }
 }
-impl Error for OutofInputError {}
+
+impl Error for LexError {}
 
 #[derive(Debug)]
 enum Number {
@@ -47,7 +58,7 @@ impl<'a> Lexer<'a> {
             self.read_pos += 1;
             return Ok(());
         }
-        bail!(OutofInputError)
+        bail!(LexError::OutofInputError)
     }
 
     fn skip_whitespace(&mut self) -> Result<()> {
@@ -181,7 +192,7 @@ impl<'a> Lexer<'a> {
                     self.read_char()?;
                     Token::NotEqual
                 } else {
-                    unreachable!()
+                    bail!(LexError::UnexpectedChar(next_char))
                 }
             }
 
@@ -190,7 +201,7 @@ impl<'a> Lexer<'a> {
                     self.read_char()?;
                     Token::Equal
                 } else {
-                    unreachable!()
+                    bail!(LexError::UnexpectedChar(self.peek()))
                 }
             }
 
@@ -199,7 +210,7 @@ impl<'a> Lexer<'a> {
                     self.read_char()?;
                     Token::DeclareAlt
                 } else {
-                    unreachable!()
+                    bail!(LexError::UnexpectedChar(self.peek()))
                 }
             }
 
@@ -373,7 +384,7 @@ impl<'a> Lexer<'a> {
                 Number::Int(int_num) => return Ok(Token::Number(int_num)),
                 Number::Float(float_num) => return Ok(Token::Float(float_num)),
             },
-            ch => unreachable!("got character: {}", ch),
+            ch => bail!(LexError::UnexpectedChar(ch)),
         };
 
         let _ = self.read_char();
