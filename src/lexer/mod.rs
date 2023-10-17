@@ -123,7 +123,7 @@ impl<'a> Lexer<'a> {
         let pos = self.pos;
         let ch = self.ch;
 
-        let _ = self.skip_whitespace();
+        self.skip_whitespace()?;
         let next_word = self.read_ident();
 
         self.ch = ch;
@@ -132,9 +132,34 @@ impl<'a> Lexer<'a> {
         next_word
     }
 
+    fn peek_nth_word(&mut self, n: u32) -> Result<&'a str> {
+        let read_pos = self.read_pos;
+        let pos = self.pos;
+        let ch = self.ch;
+        let mut next_word = "";
+
+        for _ in 0..n {
+            self.skip_whitespace()?;
+            next_word = self.read_ident()?;
+        }
+
+        self.ch = ch;
+        self.pos = pos;
+        self.read_pos = read_pos;
+        Ok(next_word)
+    }
+
     fn skip_next_word(&mut self) -> Result<()> {
         self.skip_whitespace()?;
         self.read_ident()?;
+        Ok(())
+    }
+
+    fn skip_n_words(&mut self, n: u32) -> Result<()> {
+        for _ in 0..n {
+            self.skip_whitespace()?;
+            self.read_ident()?;
+        }
         Ok(())
     }
 
@@ -151,16 +176,13 @@ impl<'a> Lexer<'a> {
 
         let token = match self.ch {
             '+' => Token::Sum,
-            '-' => {
-                if self.peek().is_ascii_digit() {
-                    match self.read_number()? {
-                        Number::Int(int_num) => return Ok(Token::Number(int_num)),
-                        Number::Float(float_num) => return Ok(Token::Float(float_num)),
-                    }
-                } else {
-                    Token::Sub
-                }
-            }
+            '-' => match self.peek().is_ascii_digit() {
+                true => match self.read_number()? {
+                    Number::Int(int_num) => return Ok(Token::Number(int_num)),
+                    Number::Float(float_num) => return Ok(Token::Float(float_num)),
+                },
+                false => Token::Sub,
+            },
             '*' => Token::Mul,
             '/' => Token::Div,
             '%' => Token::Mod,
@@ -169,53 +191,49 @@ impl<'a> Lexer<'a> {
             '{' => Token::LeftBrace,
             '}' => Token::RightBrace,
 
-            '<' => {
-                if self.peek() == '=' {
+            '<' => match self.peek() {
+                '=' => {
                     self.read_char()?;
                     Token::LessThanEqual
-                } else {
-                    Token::LessThan
                 }
-            }
+                _ => Token::LessThan,
+            },
 
-            '>' => {
-                if self.peek() == '=' {
+            '>' => match self.peek() {
+                '=' => {
                     self.read_char()?;
                     Token::GreaterThanEqual
-                } else {
-                    Token::GreaterThan
                 }
-            }
+                _ => Token::GreaterThan,
+            },
 
             '!' => {
                 let next_char = self.peek();
-                if next_char == '!' {
-                    return Ok(Token::Comment(self.read_line()?));
-                } else if next_char == '=' {
-                    self.read_char()?;
-                    Token::NotEqual
-                } else {
-                    bail!(LexError::UnexpectedChar(next_char))
+                match next_char {
+                    '!' => return Ok(Token::Comment(self.read_line()?)),
+                    '=' => {
+                        self.read_char()?;
+                        Token::NotEqual
+                    }
+                    _ => bail!(LexError::UnexpectedChar(next_char)),
                 }
             }
 
-            '=' => {
-                if self.peek() == '=' {
+            '=' => match self.peek() {
+                '=' => {
                     self.read_char()?;
                     Token::Equal
-                } else {
-                    bail!(LexError::UnexpectedChar(self.peek()))
                 }
-            }
+                _ => bail!(LexError::UnexpectedChar(self.peek())),
+            },
 
-            ':' => {
-                if self.peek() == '=' {
+            ':' => match self.peek() {
+                '=' => {
                     self.read_char()?;
                     Token::DeclareAlt
-                } else {
-                    bail!(LexError::UnexpectedChar(self.peek()))
                 }
-            }
+                _ => bail!(LexError::UnexpectedChar(self.peek())),
+            },
 
             '"' => return Ok(Token::Literal(self.read_literal()?)),
 
@@ -230,151 +248,110 @@ impl<'a> Lexer<'a> {
                     "true" => Token::BoolTrue,
                     "false" => Token::BoolFalse,
 
-                    "LAKSHMI" => {
-                        if self.peek_next_word().is_ok_and(|x| x == "START") {
+                    "LAKSHMI" => match self.peek_next_word() {
+                        Ok("START") => {
                             self.skip_next_word()?;
                             Token::ProgramStart
-                        } else {
-                            bail!(LexError::UnexpectedWord)
                         }
-                    }
-                    "AANDAVAN" => {
-                        if self.peek_next_word().is_ok_and(|x| x == "SOLLRAN") {
+                        _ => bail!(LexError::UnexpectedWord),
+                    },
+                    "AANDAVAN" => match self.peek_next_word() {
+                        Ok("SOLLRAN") => {
                             self.skip_next_word()?;
                             Token::StartDeclare
-                        } else {
-                            bail!(LexError::UnexpectedWord)
                         }
-                    }
-                    "ARUNACHALAM" => {
-                        if self.peek_next_word().is_ok_and(|x| x == "SEIYARAN") {
+                        _ => bail!(LexError::UnexpectedWord),
+                    },
+                    "ARUNACHALAM" => match self.peek_next_word() {
+                        Ok("SEIYARAN") => {
                             self.skip_next_word()?;
                             Token::Declare
-                        } else {
-                            bail!(LexError::UnexpectedWord)
                         }
-                    }
-                    "BHAJJI" => {
-                        if self.peek_next_word().is_ok_and(|x| x == "SAAPDU") {
+                        _ => bail!(LexError::UnexpectedWord),
+                    },
+                    "BHAJJI" => match self.peek_next_word() {
+                        Ok("SAAPDU") => {
                             self.skip_next_word()?;
                             Token::Assign
-                        } else {
-                            bail!(LexError::UnexpectedWord)
                         }
-                    }
-                    "THADAVA" => {
-                        if self.peek_next_word().is_ok_and(|x| x == "SONNA") {
+                        _ => bail!(LexError::UnexpectedWord),
+                    },
+                    "THADAVA" => match (self.peek_nth_word(1), self.peek_nth_word(2)) {
+                        (Ok("SONNA"), Ok("MADHRI")) => {
+                            self.skip_n_words(2)?;
+                            Token::ForRangeEnd
+                        }
+                        (Ok("SONNA"), _) => {
                             self.skip_next_word()?;
-                            if self.peek_next_word().is_ok_and(|x| x == "MADHRI") {
-                                self.skip_next_word()?;
-                                Token::ForRangeEnd
-                            } else {
-                                Token::ForRangeStart
-                            }
-                        } else {
-                            bail!(LexError::UnexpectedWord)
+                            Token::ForRangeStart
                         }
-                    }
-                    "KATHAM" => {
-                        if self.peek_next_word().is_ok_and(|x| x == "KATHAM") {
+                        _ => bail!(LexError::UnexpectedWord),
+                    },
+                    "KATHAM" => match self.peek_next_word() {
+                        Ok("KATHAM") => {
                             self.skip_next_word()?;
                             Token::EndBlock
-                        } else {
-                            bail!(LexError::UnexpectedWord)
                         }
-                    }
-                    "BLACK" => {
-                        if self.peek_next_word().is_ok_and(|x| x == "SHEEP") {
+                        _ => bail!(LexError::UnexpectedWord),
+                    },
+                    "BLACK" => match self.peek_next_word() {
+                        Ok("SHEEP") => {
                             self.skip_next_word()?;
                             Token::BreakLoop
-                        } else {
-                            bail!(LexError::UnexpectedWord)
                         }
-                    }
-                    "CHUMMA" => {
-                        if self.peek_next_word().is_ok_and(|x| x == "ADHURUDHULA") {
+                        _ => bail!(LexError::UnexpectedWord),
+                    },
+                    "CHUMMA" => match self.peek_next_word() {
+                        Ok("ADHURUDHULA") => {
                             self.skip_next_word()?;
                             Token::FuncCall
-                        } else {
-                            bail!(LexError::UnexpectedWord)
                         }
-                    }
+                        _ => bail!(LexError::UnexpectedWord),
+                    },
 
-                    // i'm crying inside after writing this
-                    "EN" => {
-                        if self.peek_next_word().is_ok_and(|x| x == "PEAR") {
-                            self.skip_next_word()?;
-                            if self.peek_next_word().is_ok_and(|x| x == "MANICKAM") {
-                                self.skip_next_word()?;
-                                Token::IfCond
-                            } else {
-                                bail!(LexError::UnexpectedWord)
-                            }
-                        } else if self.peek_next_word().is_ok_and(|x| x == "VAZHI") {
-                            self.skip_next_word()?;
-                            if self.peek_next_word().is_ok_and(|x| x == "THANI") {
-                                self.skip_next_word()?;
-                                if self.peek_next_word().is_ok_and(|x| x == "VAZHI") {
-                                    self.skip_next_word()?;
-                                    Token::FuncDeclare
-                                } else {
-                                    bail!(LexError::UnexpectedWord)
-                                }
-                            } else {
-                                bail!(LexError::UnexpectedWord)
-                            }
-                        } else {
-                            bail!(LexError::UnexpectedWord)
+                    "EN" => match (
+                        self.peek_nth_word(1),
+                        self.peek_nth_word(2),
+                        self.peek_nth_word(3),
+                    ) {
+                        (Ok("PEAR"), Ok("MANICKAM"), _) => {
+                            self.skip_n_words(2)?;
+                            Token::IfCond
                         }
-                    }
-
-                    // i'm crying inside after writing this
-                    "BABA" => {
-                        if self.peek_next_word().is_ok_and(|x| x == "COUNTING") {
-                            self.skip_next_word()?;
-                            if self.peek_next_word().is_ok_and(|x| x == "STARTS") {
-                                self.skip_next_word()?;
-                                Token::WhileLoop
-                            } else {
-                                bail!(LexError::UnexpectedWord)
-                            }
-                        } else {
-                            bail!(LexError::UnexpectedWord)
+                        (Ok("VAZHI"), Ok("THANI"), Ok("VAZHI")) => {
+                            self.skip_n_words(3)?;
+                            Token::FuncDeclare
                         }
-                    }
+                        _ => bail!(LexError::UnexpectedWord),
+                    },
 
-                    // i'm crying inside after writing this
-                    "IDHU" => {
-                        if self.peek_next_word().is_ok_and(|x| x == "EPDI") {
-                            self.skip_next_word()?;
-                            if self.peek_next_word().is_ok_and(|x| x == "IRUKKU") {
-                                self.skip_next_word()?;
-                                Token::FuncReturn
-                            } else {
-                                bail!(LexError::UnexpectedWord)
-                            }
-                        } else {
-                            bail!(LexError::UnexpectedWord)
+                    "BABA" => match (self.peek_nth_word(1), self.peek_nth_word(2)) {
+                        (Ok("COUNTING"), Ok("STARTS")) => {
+                            self.skip_n_words(2)?;
+                            Token::WhileLoop
                         }
-                    }
+                        _ => bail!(LexError::UnexpectedWord),
+                    },
 
-                    // i'm crying inside after writing this
+                    "IDHU" => match (self.peek_nth_word(1), self.peek_nth_word(2)) {
+                        (Ok("EPDI"), Ok("IRUKKU")) => {
+                            self.skip_n_words(2)?;
+                            Token::FuncReturn
+                        }
+                        _ => bail!(LexError::UnexpectedWord),
+                    },
+
                     "ENAKKU" => {
-                        if self.peek_next_word().is_ok_and(|x| x == "INNURU") {
-                            self.skip_next_word()?;
-                            if self.peek_next_word().is_ok_and(|x| x == "PEAR") {
-                                self.skip_next_word()?;
-                                if self.peek_next_word().is_ok_and(|x| x == "IRUKKU") {
-                                    self.skip_next_word()?;
-                                    Token::ElseCond
-                                } else {
-                                    bail!(LexError::UnexpectedWord)
-                                }
-                            } else {
-                                bail!(LexError::UnexpectedWord)
+                        match (
+                            self.peek_nth_word(1),
+                            self.peek_nth_word(2),
+                            self.peek_nth_word(3),
+                        ) {
+                            (Ok("INNURU"), Ok("PEAR"), Ok("IRUKKU")) => {
+                                self.skip_n_words(3)?;
+                                Token::ElseCond
                             }
-                        } else {
-                            bail!(LexError::UnexpectedWord)
+                            _ => bail!(LexError::UnexpectedWord),
                         }
                     }
 
