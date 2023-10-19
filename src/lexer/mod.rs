@@ -1,7 +1,6 @@
 mod tokens;
 pub use tokens::Token;
 
-use anyhow::{bail, Result};
 use std::{
     error::Error,
     fmt::{Debug, Display},
@@ -53,77 +52,104 @@ impl<'a> Lexer<'a> {
         lexer
     }
 
-    fn read_char(&mut self) -> Result<()> {
+    fn read_char(&mut self) {
         if self.read_pos < self.input.len() {
             self.ch = self.input[self.read_pos] as char;
             self.pos = self.read_pos;
             self.read_pos += 1;
-            return Ok(());
         }
-        bail!(LexError::OutOfInput)
     }
 
-    fn skip_whitespace(&mut self) -> Result<()> {
-        while self.ch.is_ascii_whitespace() {
-            self.read_char()?;
+    fn skip_whitespace(&mut self) {
+        while self.ch.is_ascii_whitespace() && !self.is_eof() {
+            self.read_char();
         }
-        Ok(())
     }
 
-    fn read_ident(&mut self) -> Result<&'a str> {
+    fn is_eof(&self) -> bool {
+        self.read_pos >= self.input.len()
+    }
+
+    fn read_ident(&mut self) -> Option<&'a str> {
+        if self.is_eof() {
+            return None;
+        }
+
         let pos = self.pos;
-        while self.ch.is_ascii_alphabetic() || self.ch == '_' {
-            self.read_char()?;
+        while (self.ch.is_ascii_alphabetic() || self.ch == '_') && !self.is_eof() {
+            self.read_char();
         }
-
-        Ok(&self.input_str[pos..self.pos])
+        Some(&self.input_str[pos..self.pos])
     }
 
-    fn read_number(&mut self) -> Result<Number> {
+    fn read_number(&mut self) -> Option<Number> {
         let pos = self.pos;
-        let mut has_dot = false;
-        while self.ch.is_ascii_digit() || self.ch == '-' || (self.ch == '.' && !has_dot) {
-            if self.ch == '.' {
-                has_dot = true;
+        let (mut has_dot, mut has_dash) = (false, false);
+        // let (mut num_dots, mut num_dashes) = (0, 0);
+
+        // TODO: make sure dash is the first char
+        while self.ch.is_ascii_digit()
+            || (self.ch == '-' && !has_dash)
+            || (self.ch == '.' && !has_dot)
+        {
+            if self.is_eof() {
+                return None;
             }
-            // has_dot = has_dot || self.ch == '.';
-            self.read_char()?;
+            // num_dots += i32::from(has_dot || self.ch == '.');
+            // num_dashes += i32::from(has_dash || self.ch == '-');
+            has_dot = has_dot || self.ch == '.';
+            has_dash = has_dash || self.ch == '-';
+            self.read_char();
         }
 
-        if has_dot {
-            Ok(Number::Float(self.input_str[pos..self.pos].parse::<f64>()?))
+        if (has_dash && self.ch == '-') || (has_dot && self.ch == '.') || self.is_eof() {
+            // TODO: move from Option type to Result type?
+            None
         } else {
-            Ok(Number::Int(self.input_str[pos..self.pos].parse::<i64>()?))
+            match has_dot {
+                true => Some(Number::Float(
+                    self.input_str[pos..self.pos].parse::<f64>().unwrap(),
+                )),
+                false => Some(Number::Int(
+                    self.input_str[pos..self.pos].parse::<i64>().unwrap(),
+                )),
+            }
         }
     }
 
-    fn read_line(&mut self) -> Result<&'a str> {
+    fn read_line(&mut self) -> Option<&'a str> {
         let pos = self.pos;
         while self.ch != '\n' {
-            self.read_char()?;
+            if self.is_eof() {
+                return None;
+            }
+            self.read_char();
         }
 
-        Ok(&self.input_str[pos..self.pos])
+        Some(&self.input_str[pos..self.pos])
     }
 
-    fn read_literal(&mut self) -> Result<&'a str> {
-        self.read_char()?;
+    fn read_literal(&mut self) -> Option<&'a str> {
+        self.read_char();
         let pos = self.pos;
         while self.ch != '"' {
-            self.read_char()?;
+            if self.is_eof() {
+                return None;
+            }
+            self.read_char();
         }
         let end_pos = self.pos;
-        self.read_char()?;
+        self.read_char();
 
-        Ok(&self.input_str[pos..end_pos])
+        Some(&self.input_str[pos..end_pos])
     }
 
-    fn peek_next_word(&mut self) -> Result<&'a str> {
+    fn peek_next_word(&mut self) -> Option<&'a str> {
         let read_pos = self.read_pos;
         let pos = self.pos;
         let ch = self.ch;
 
-        self.skip_whitespace()?;
+        self.skip_whitespace();
         let next_word = self.read_ident();
 
         self.ch = ch;
@@ -132,54 +158,51 @@ impl<'a> Lexer<'a> {
         next_word
     }
 
-    fn peek_nth_word(&mut self, n: u32) -> Result<&'a str> {
+    fn peek_nth_word(&mut self, n: u32) -> Option<&'a str> {
         let read_pos = self.read_pos;
         let pos = self.pos;
         let ch = self.ch;
         let mut next_word = "";
 
         for _ in 0..n {
-            self.skip_whitespace()?;
+            self.skip_whitespace();
             next_word = self.read_ident()?;
         }
 
         self.ch = ch;
         self.pos = pos;
         self.read_pos = read_pos;
-        Ok(next_word)
+        Some(next_word)
     }
 
-    fn skip_next_word(&mut self) -> Result<()> {
-        self.skip_whitespace()?;
-        self.read_ident()?;
-        Ok(())
+    fn skip_next_word(&mut self) {
+        self.skip_whitespace();
+        self.read_ident();
     }
 
-    fn skip_n_words(&mut self, n: u32) -> Result<()> {
+    fn skip_n_words(&mut self, n: u32) {
         for _ in 0..n {
-            self.skip_whitespace()?;
-            self.read_ident()?;
-        }
-        Ok(())
-    }
-
-    pub fn peek(&mut self) -> char {
-        if self.read_pos >= self.input.len() {
-            0 as char
-        } else {
-            self.input[self.read_pos] as char
+            self.skip_whitespace();
+            self.read_ident();
         }
     }
 
-    pub fn next_token(&mut self) -> Result<Token> {
-        self.skip_whitespace()?;
+    pub fn peek(&mut self) -> Option<char> {
+        match self.is_eof() {
+            true => None,
+            false => Some(self.input[self.read_pos] as char),
+        }
+    }
+
+    pub fn next_token(&mut self) -> Option<Token> {
+        self.skip_whitespace();
 
         let token = match self.ch {
             '+' => Token::Sum,
-            '-' => match self.peek().is_ascii_digit() {
+            '-' => match self.peek()?.is_ascii_digit() {
                 true => match self.read_number()? {
-                    Number::Int(int_num) => return Ok(Token::Number(int_num)),
-                    Number::Float(float_num) => return Ok(Token::Float(float_num)),
+                    Number::Int(int_num) => return Some(Token::Number(int_num)),
+                    Number::Float(float_num) => return Some(Token::Float(float_num)),
                 },
                 false => Token::Sub,
             },
@@ -191,51 +214,54 @@ impl<'a> Lexer<'a> {
             '{' => Token::LeftBrace,
             '}' => Token::RightBrace,
 
-            '<' => match self.peek() {
+            '<' => match self.peek()? {
                 '=' => {
-                    self.read_char()?;
+                    self.read_char();
                     Token::LessThanEqual
                 }
                 _ => Token::LessThan,
             },
 
-            '>' => match self.peek() {
+            '>' => match self.peek()? {
                 '=' => {
-                    self.read_char()?;
+                    self.read_char();
                     Token::GreaterThanEqual
                 }
                 _ => Token::GreaterThan,
             },
 
             '!' => {
-                let next_char = self.peek();
+                let next_char = self.peek()?;
                 match next_char {
-                    '!' => return Ok(Token::Comment(self.read_line()?)),
+                    '!' => return Some(Token::Comment(self.read_line()?)),
                     '=' => {
-                        self.read_char()?;
+                        self.read_char();
                         Token::NotEqual
                     }
-                    _ => bail!(LexError::UnexpectedChar(next_char)),
+                    _ => return None,
+                    // _ => bail!(LexError::UnexpectedChar(next_char)),
                 }
             }
 
-            '=' => match self.peek() {
+            '=' => match self.peek()? {
                 '=' => {
-                    self.read_char()?;
+                    self.read_char();
                     Token::Equal
                 }
-                _ => bail!(LexError::UnexpectedChar(self.peek())),
+                // _ => bail!(LexError::UnexpectedChar(self.peek())),
+                _ => return None,
             },
 
-            ':' => match self.peek() {
+            ':' => match self.peek()? {
                 '=' => {
-                    self.read_char()?;
+                    self.read_char();
                     Token::DeclareAlt
                 }
-                _ => bail!(LexError::UnexpectedChar(self.peek())),
+                // _ => bail!(LexError::UnexpectedChar(self.peek())),
+                _ => return None,
             },
 
-            '"' => return Ok(Token::Literal(self.read_literal()?)),
+            '"' => return Some(Token::Literal(self.read_literal()?)),
 
             'a'..='z' | 'A'..='Z' | '_' => {
                 let ident = self.read_ident()?;
@@ -249,64 +275,64 @@ impl<'a> Lexer<'a> {
                     "false" => Token::BoolFalse,
 
                     "LAKSHMI" => match self.peek_next_word() {
-                        Ok("START") => {
-                            self.skip_next_word()?;
+                        Some("START") => {
+                            self.skip_next_word();
                             Token::ProgramStart
                         }
-                        _ => bail!(LexError::UnexpectedWord),
+                        _ => return None,
                     },
                     "AANDAVAN" => match self.peek_next_word() {
-                        Ok("SOLLRAN") => {
-                            self.skip_next_word()?;
+                        Some("SOLLRAN") => {
+                            self.skip_next_word();
                             Token::StartDeclare
                         }
-                        _ => bail!(LexError::UnexpectedWord),
+                        _ => return None,
                     },
                     "ARUNACHALAM" => match self.peek_next_word() {
-                        Ok("SEIYARAN") => {
-                            self.skip_next_word()?;
+                        Some("SEIYARAN") => {
+                            self.skip_next_word();
                             Token::Declare
                         }
-                        _ => bail!(LexError::UnexpectedWord),
+                        _ => return None,
                     },
                     "BHAJJI" => match self.peek_next_word() {
-                        Ok("SAAPDU") => {
-                            self.skip_next_word()?;
+                        Some("SAAPDU") => {
+                            self.skip_next_word();
                             Token::Assign
                         }
-                        _ => bail!(LexError::UnexpectedWord),
+                        _ => return None,
                     },
                     "THADAVA" => match (self.peek_nth_word(1), self.peek_nth_word(2)) {
-                        (Ok("SONNA"), Ok("MADHRI")) => {
-                            self.skip_n_words(2)?;
+                        (Some("SONNA"), Some("MADHRI")) => {
+                            self.skip_n_words(2);
                             Token::ForRangeEnd
                         }
-                        (Ok("SONNA"), _) => {
-                            self.skip_next_word()?;
+                        (Some("SONNA"), _) => {
+                            self.skip_next_word();
                             Token::ForRangeStart
                         }
-                        _ => bail!(LexError::UnexpectedWord),
+                        _ => return None,
                     },
                     "KATHAM" => match self.peek_next_word() {
-                        Ok("KATHAM") => {
-                            self.skip_next_word()?;
+                        Some("KATHAM") => {
+                            self.skip_next_word();
                             Token::EndBlock
                         }
-                        _ => bail!(LexError::UnexpectedWord),
+                        _ => return None,
                     },
                     "BLACK" => match self.peek_next_word() {
-                        Ok("SHEEP") => {
-                            self.skip_next_word()?;
+                        Some("SHEEP") => {
+                            self.skip_next_word();
                             Token::BreakLoop
                         }
-                        _ => bail!(LexError::UnexpectedWord),
+                        _ => return None,
                     },
                     "CHUMMA" => match self.peek_next_word() {
-                        Ok("ADHURUDHULA") => {
-                            self.skip_next_word()?;
+                        Some("ADHURUDHULA") => {
+                            self.skip_next_word();
                             Token::FuncCall
                         }
-                        _ => bail!(LexError::UnexpectedWord),
+                        _ => return None,
                     },
 
                     "EN" => match (
@@ -314,31 +340,31 @@ impl<'a> Lexer<'a> {
                         self.peek_nth_word(2),
                         self.peek_nth_word(3),
                     ) {
-                        (Ok("PEAR"), Ok("MANICKAM"), _) => {
-                            self.skip_n_words(2)?;
+                        (Some("PEAR"), Some("MANICKAM"), _) => {
+                            self.skip_n_words(2);
                             Token::IfCond
                         }
-                        (Ok("VAZHI"), Ok("THANI"), Ok("VAZHI")) => {
-                            self.skip_n_words(3)?;
+                        (Some("VAZHI"), Some("THANI"), Some("VAZHI")) => {
+                            self.skip_n_words(3);
                             Token::FuncDeclare
                         }
-                        _ => bail!(LexError::UnexpectedWord),
+                        _ => return None,
                     },
 
                     "BABA" => match (self.peek_nth_word(1), self.peek_nth_word(2)) {
-                        (Ok("COUNTING"), Ok("STARTS")) => {
-                            self.skip_n_words(2)?;
+                        (Some("COUNTING"), Some("STARTS")) => {
+                            self.skip_n_words(2);
                             Token::WhileLoop
                         }
-                        _ => bail!(LexError::UnexpectedWord),
+                        _ => return None,
                     },
 
                     "IDHU" => match (self.peek_nth_word(1), self.peek_nth_word(2)) {
-                        (Ok("EPDI"), Ok("IRUKKU")) => {
-                            self.skip_n_words(2)?;
+                        (Some("EPDI"), Some("IRUKKU")) => {
+                            self.skip_n_words(2);
                             Token::FuncReturn
                         }
-                        _ => bail!(LexError::UnexpectedWord),
+                        _ => return None,
                     },
 
                     "ENAKKU" => {
@@ -347,28 +373,28 @@ impl<'a> Lexer<'a> {
                             self.peek_nth_word(2),
                             self.peek_nth_word(3),
                         ) {
-                            (Ok("INNURU"), Ok("PEAR"), Ok("IRUKKU")) => {
-                                self.skip_n_words(3)?;
+                            (Some("INNURU"), Some("PEAR"), Some("IRUKKU")) => {
+                                self.skip_n_words(3);
                                 Token::ElseCond
                             }
-                            _ => bail!(LexError::UnexpectedWord),
+                            _ => return None,
                         }
                     }
 
                     ident => Token::Ident(ident),
                 };
-                return Ok(tok);
+                return Some(tok);
             }
 
             '0'..='9' => match self.read_number()? {
-                Number::Int(int_num) => return Ok(Token::Number(int_num)),
-                Number::Float(float_num) => return Ok(Token::Float(float_num)),
+                Number::Int(int_num) => return Some(Token::Number(int_num)),
+                Number::Float(float_num) => return Some(Token::Float(float_num)),
             },
-            ch => bail!(LexError::UnexpectedChar(ch)),
+            _ => return None,
         };
 
-        let _ = self.read_char();
-        Ok(token)
+        self.read_char();
+        Some(token)
     }
 }
 
@@ -376,10 +402,9 @@ impl<'a> Lexer<'a> {
 mod tests {
     use super::Lexer;
     use super::Token::*;
-    use anyhow::Result;
 
     #[test]
-    fn test_fizz_buzz() -> Result<()> {
+    fn test_fizz_buzz() {
         let program = r#"
             LAKSHMI START
 
@@ -492,15 +517,14 @@ mod tests {
 
         let mut lexer = Lexer::new(program);
         for token in tokens {
-            let lex_token = lexer.next_token()?;
-            assert_eq!(token, lex_token);
+            let lex_token = lexer.next_token();
+            assert_eq!(Some(token), lex_token);
         }
-        assert!(lexer.next_token().is_err());
-        Ok(())
+        assert!(lexer.next_token().is_none());
     }
 
     #[test]
-    fn test_math_ops() -> Result<()> {
+    fn test_math_ops() {
         let program = r#"
             LAKSHMI START
             AANDAVAN SOLLRAN addvar ARUNACHALAM SEIYARAN 25 + 15;
@@ -578,15 +602,14 @@ mod tests {
 
         let mut lexer = Lexer::new(program);
         for token in tokens {
-            let lex_token = lexer.next_token()?;
-            assert_eq!(token, lex_token);
+            let lex_token = lexer.next_token();
+            assert_eq!(Some(token), lex_token);
         }
-        assert!(lexer.next_token().is_err());
-        Ok(())
+        assert!(lexer.next_token().is_none());
     }
 
     #[test]
-    fn test_while_loop() -> Result<()> {
+    fn test_while_loop() {
         let program = r#"
             LAKSHMI START
             DOT "While Loop Example";
@@ -645,15 +668,14 @@ mod tests {
 
         let mut lexer = Lexer::new(program);
         for token in tokens {
-            let lex_token = lexer.next_token()?;
-            assert_eq!(token, lex_token);
+            let lex_token = lexer.next_token();
+            assert_eq!(Some(token), lex_token);
         }
-        assert!(lexer.next_token().is_err());
-        Ok(())
+        assert!(lexer.next_token().is_none());
     }
 
     #[test]
-    fn test_logical_ops() -> Result<()> {
+    fn test_logical_ops() {
         let program = r#"
             LAKSHMI START
             AANDAVAN SOLLRAN x ARUNACHALAM SEIYARAN 5.5;
@@ -785,15 +807,14 @@ mod tests {
 
         let mut lexer = Lexer::new(program);
         for token in tokens {
-            let lex_token = lexer.next_token()?;
-            assert_eq!(token, lex_token);
+            let lex_token = lexer.next_token();
+            assert_eq!(Some(token), lex_token);
         }
-        assert!(lexer.next_token().is_err());
-        Ok(())
+        assert!(lexer.next_token().is_none());
     }
 
     #[test]
-    fn test_function() -> Result<()> {
+    fn test_function() {
         let program = r#"
             EN VAZHI THANI VAZHI myfunc_one
                 DOT "Hello from myfunc_one!";
@@ -845,10 +866,9 @@ mod tests {
 
         let mut lexer = Lexer::new(program);
         for token in tokens {
-            let lex_token = lexer.next_token()?;
-            assert_eq!(token, lex_token);
+            let lex_token = lexer.next_token();
+            assert_eq!(Some(token), lex_token);
         }
-        assert!(lexer.next_token().is_err());
-        Ok(())
+        assert!(lexer.next_token().is_none());
     }
 }
