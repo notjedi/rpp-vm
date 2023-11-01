@@ -58,22 +58,22 @@ pub enum Token<'a> {
 
 impl<'a> Token<'a> {
     pub fn is_mathop(token: &Token) -> bool {
-        match token {
-            Token::Sum | Token::Sub | Token::Mul | Token::Div | Token::Mod => true,
-            _ => false,
-        }
+        matches!(
+            token,
+            Token::Sum | Token::Sub | Token::Mul | Token::Div | Token::Mod
+        )
     }
 
     pub fn is_logicalop(token: &Token) -> bool {
-        match token {
+        matches!(
+            token,
             Token::GreaterThan
-            | Token::GreaterThanEqual
-            | Token::LessThan
-            | Token::LessThanEqual
-            | Token::Equal
-            | Token::NotEqual => true,
-            _ => false,
-        }
+                | Token::GreaterThanEqual
+                | Token::LessThan
+                | Token::LessThanEqual
+                | Token::Equal
+                | Token::NotEqual
+        )
     }
 }
 

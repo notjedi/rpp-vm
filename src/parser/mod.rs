@@ -29,28 +29,44 @@ pub enum StmtEnum<'a> {
     FuncCall(String),
     Print(Expression<'a>),
     FuncReturn(Expression<'a>),
-    Assign(String, Expression<'a>),
+    Expression(Expression<'a>),
+    Assign {
+        lhs: String,
+        rhs: Expression<'a>,
+    },
+    AssignFuncCall {
+        lhs: String,
+        rhs: String,
+    },
+    IfCond {
+        condition: Expression<'a>,
+        body: Vec<StmtEnum<'a>>,
+    },
+    ForLoop {
+        start: Token<'a>,
+        end: Token<'a>,
+    },
+    WhileLoop {
+        condition: Expression<'a>,
+        body: Vec<StmtEnum<'a>>,
+    },
 }
 
 pub struct Program<'a> {
     functions: Vec<Function<'a>>,
-    statments: Vec<Statement<'a>>,
+    statments: Vec<StmtEnum<'a>>,
 }
 
 pub struct Function<'a> {
-    func_name: String,
-    func_body: Vec<Statement<'a>>,
-}
-
-pub struct Statement<'a> {
-    body: StmtEnum<'a>,
+    name: String,
+    body: Vec<StmtEnum<'a>>,
 }
 
 pub struct ForStatement<'a> {
-    init: Statement<'a>,
-    condition: Statement<'a>,
-    update: Statement<'a>,
-    body: Vec<Statement<'a>>,
+    init: StmtEnum<'a>,
+    condition: StmtEnum<'a>,
+    update: StmtEnum<'a>,
+    body: Vec<StmtEnum<'a>>,
 }
 
 pub struct Expression<'a> {
@@ -74,7 +90,6 @@ impl<'a> RDParser<'a> {
         parser
     }
 
-    // pub fn consume(&mut self) -> Result<()> {
     pub fn consume(&mut self) -> Result<(), ParseError<'a>> {
         if self.read_pos < self.tokens.len() {
             self.curr_token = &self.tokens[self.read_pos];
@@ -102,28 +117,33 @@ impl<'a> RDParser<'a> {
     }
 
     fn parse_functions(&mut self) -> Result<Vec<Function<'a>>, ParseError<'a>> {
+        // FUNC_DECLARE func_name statements END_FUNC
         let mut functions: Vec<Function<'a>> = Vec::new();
         while self.curr_token == &Token::FuncDeclare {
             self.consume()?;
-            let statement = self.parse_statement()?;
-            // functions.push(func);
+            let Token::Literal(func_name) = self.curr_token else {
+                return Err(ParseError::UnexpectedToken(self.curr_token));
+            };
+            let mut body = Vec::new();
+            while self.curr_token != &Token::EndFunc {
+                let statement = self.parse_statement()?;
+                body.push(statement);
+            }
+            self.consume()?;
+            functions.push(Function {
+                name: func_name.to_string(),
+                body,
+            })
         }
         Ok(functions)
     }
 
-    fn parse_main(&mut self) -> Result<Vec<Statement<'a>>, ParseError<'a>> {
+    fn parse_main(&mut self) -> Result<Vec<StmtEnum<'a>>, ParseError<'a>> {
         todo!()
     }
 
     // fn parse_statement(&mut self) -> Result<Vec<Statement<'a>>, ParseError<'a>> {}
-    fn parse_statement(&mut self) -> Result<Statement<'a>, ParseError<'a>> {
-        // IF_COND logical_expression L_BRACE statements R_BRACE
-        // IF_COND logical_expression L_BRACE statements R_BRACE END_BLOCK SEMI_COLON
-        // FOR_START forvar FOR_RANGE_START forvar FOR_RANGE_END
-        // WHILE_LOOP expression L_BRACE statements R_BRACE END_BLOCK SEMI_COLON
-        // expression SEMI_COLON
-        // variable ASSIGN expression SEMI_COLON
-        // variable FUNC_CALL func_name SEMI_COLON
+    fn parse_statement(&mut self) -> Result<StmtEnum<'a>, ParseError<'a>> {
         let body = match *self.curr_token {
             Token::BreakLoop => {
                 // BREAK_LOOP SEMI_COLON
@@ -164,24 +184,108 @@ impl<'a> RDParser<'a> {
                 self.eat(&Token::Declare).or(self.eat(&Token::DeclareAlt))?;
                 let expr = self.parse_expression()?;
                 self.eat(&Token::SemiColon)?;
-                StmtEnum::Assign(var.to_string(), expr)
+                StmtEnum::Assign {
+                    lhs: var.to_string(),
+                    rhs: expr,
+                }
             }
             Token::IfCond => {
-                todo!()
+                // | IF_COND logical_expression L_BRACE statements R_BRACE
+                // | IF_COND logical_expression L_BRACE statements R_BRACE END_BLOCK SEMI_COLON
+                self.consume()?;
+                let mut statements = Vec::new();
+                let expr = self.parse_expression()?;
+                self.eat(&Token::LeftBrace)?;
+
+                while self.curr_token == &Token::RightBrace {
+                    self.consume()?;
+                    let statement = self.parse_statement()?;
+                    statements.push(statement);
+                }
+                self.eat(&Token::RightBrace)?;
+                if *self.curr_token == Token::EndBlock {
+                    self.consume()?;
+                    self.eat(&Token::SemiColon)?;
+                }
+                StmtEnum::IfCond {
+                    condition: expr,
+                    body: statements,
+                }
             }
             Token::ForStart => {
-                todo!()
+                // FOR_START forvar FOR_RANGE_START forvar FOR_RANGE_END
+                self.consume()?;
+                let for_start = match *self.curr_token {
+                    Token::Ident(_) | Token::Number(_) => *self.curr_token,
+                    _ => return Err(ParseError::UnexpectedToken(self.curr_token)),
+                };
+                self.eat(&Token::ForRangeStart)?;
+                let for_end = match *self.curr_token {
+                    Token::Ident(_) | Token::Number(_) => *self.curr_token,
+                    _ => return Err(ParseError::UnexpectedToken(self.curr_token)),
+                };
+                self.eat(&Token::ForRangeEnd)?;
+                StmtEnum::ForLoop {
+                    start: for_start,
+                    end: for_end,
+                }
             }
             Token::WhileLoop => {
-                todo!()
+                // WHILE_LOOP expression L_BRACE statements R_BRACE END_BLOCK SEMI_COLON
+                self.consume()?;
+                let expr = self.parse_expression()?;
+                self.eat(&Token::LeftBrace)?;
+
+                let mut statements = Vec::new();
+                while self.curr_token == &Token::RightBrace {
+                    self.consume()?;
+                    let statement = self.parse_statement()?;
+                    statements.push(statement);
+                }
+
+                self.consume()?;
+                self.eat(&Token::EndBlock)?;
+                self.eat(&Token::SemiColon)?;
+                StmtEnum::WhileLoop {
+                    condition: expr,
+                    body: statements,
+                }
             }
-            // TOOD: expression
             Token::Ident(var) => {
-                todo!()
+                // variable ASSIGN expression SEMI_COLON
+                // variable FUNC_CALL func_name SEMI_COLON
+                self.consume()?;
+                let ret_value = match *self.curr_token {
+                    Token::Assign => {
+                        self.consume()?;
+                        let expr = self.parse_expression()?;
+                        self.eat(&Token::SemiColon)?;
+                        StmtEnum::Assign {
+                            lhs: var.to_string(),
+                            rhs: expr,
+                        }
+                    }
+                    Token::FuncCall => {
+                        self.consume()?;
+                        let Token::Literal(func_name) = self.curr_token else {
+                            return Err(ParseError::UnexpectedToken(self.curr_token));
+                        };
+                        self.eat(&Token::SemiColon)?;
+                        StmtEnum::AssignFuncCall {
+                            lhs: var.to_string(),
+                            rhs: func_name.to_string(),
+                        }
+                    }
+                    _ => return Err(ParseError::UnexpectedToken(self.curr_token)),
+                };
+                ret_value
             }
-            _ => return Err(ParseError::UnexpectedToken(self.curr_token)),
+            _ => {
+                // expression SEMI_COLON
+                StmtEnum::Expression(self.parse_expression()?)
+            }
         };
-        Ok(Statement { body })
+        Ok(body)
     }
 
     fn parse_expression(&mut self) -> Result<Expression<'a>, ParseError<'a>> {
@@ -218,5 +322,37 @@ impl<'a> RDParser<'a> {
             functions: self.parse_functions()?,
             statments: self.parse_main()?,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::lexer::Lexer;
+
+    #[test]
+    fn test_parse_functions() {
+        let program = r#"
+            EN VAZHI THANI VAZHI myfunc_one
+                DOT "Hello from myfunc_one!";
+                AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 100;
+                DOT "returning ix =" ix "to main";
+                IDHU EPDI IRUKKU ix;
+            MARAKKADHINGA
+        "#;
+        let mut lexer = Lexer::new(program);
+        let mut tokens = Vec::new();
+        loop {
+            match lexer.next_token() {
+                Some(lex_token) => tokens.push(lex_token),
+                None => break,
+            }
+        }
+        // while let Some(token) = lexer.next_token() {
+        //     tokens.push(token.clone())
+        // }
+        // for token in tokens {
+        //     let lex_token = lexer.next_token();
+        //     assert_eq!(Some(token), lex_token);
+        // }
     }
 }

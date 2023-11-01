@@ -48,7 +48,7 @@ impl<'a> Lexer<'a> {
             read_pos: 0,
             ch: 0 as char,
         };
-        let _ = lexer.read_char();
+        lexer.read_char();
         lexer
     }
 
@@ -395,6 +395,16 @@ impl<'a> Lexer<'a> {
 
         self.read_char();
         Some(token)
+    }
+
+    fn lex(&mut self) {
+        let mut tokens = Vec::new();
+        loop {
+            match self.next_token() {
+                Some(lex_token) => tokens.push(lex_token),
+                None => break,
+            }
+        }
     }
 }
 
