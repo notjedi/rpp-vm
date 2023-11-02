@@ -52,13 +52,8 @@ pub(crate) enum KeyWord {
     FuncCall,
 }
 
-impl Into<Token> for KeyWord {
-    fn into(self) -> Token {
-        Token::KeyWord(self)
-    }
-}
-
 impl KeyWord {
+    #[allow(dead_code)]
     pub(crate) fn as_str(&self) -> &'static str {
         match self {
             KeyWord::ProgramStart => "LAKSHMI START",
@@ -103,27 +98,6 @@ impl KeyWord {
     }
 }
 
-impl KeyWord {
-    pub(crate) fn is_binop(&self) -> bool {
-        matches!(
-            self,
-            KeyWord::Sum | KeyWord::Sub | KeyWord::Mul | KeyWord::Div | KeyWord::Mod
-        )
-    }
-
-    pub(crate) fn is_logicalop(&self) -> bool {
-        matches!(
-            self,
-            KeyWord::GreaterThan
-                | KeyWord::GreaterThanEqual
-                | KeyWord::LessThan
-                | KeyWord::LessThanEqual
-                | KeyWord::Equal
-                | KeyWord::NotEqual
-        )
-    }
-}
-
 #[derive(Debug, PartialEq)]
 #[allow(dead_code)]
 pub(crate) enum Token {
@@ -134,18 +108,8 @@ pub(crate) enum Token {
     Literal(Literal),
 }
 
-impl Token {
-    pub(crate) fn is_binop(&self) -> bool {
-        match self {
-            Token::KeyWord(kw) => kw.is_binop(),
-            _ => false,
-        }
-    }
-
-    pub(crate) fn is_logicalop(&self) -> bool {
-        match self {
-            Token::KeyWord(kw) => kw.is_logicalop(),
-            _ => false,
-        }
+impl From<KeyWord> for Token {
+    fn from(val: KeyWord) -> Self {
+        Token::KeyWord(val)
     }
 }

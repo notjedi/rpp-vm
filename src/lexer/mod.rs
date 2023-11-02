@@ -25,12 +25,21 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn consume(&mut self) -> Option<char> {
-        self.input.next()
+    pub(crate) fn tokenize(program: &str) -> Result<Vec<Token>, LexError> {
+        let mut lexer = Lexer::new(program);
+        let mut tokens = Vec::new();
+        loop {
+            let token = lexer.advance_token()?;
+            if token == Token::Eof {
+                break;
+            }
+            tokens.push(token);
+        }
+        Ok(tokens)
     }
 
-    fn is_eof(&mut self) -> bool {
-        self.peek().is_none()
+    fn consume(&mut self) -> Option<char> {
+        self.input.next()
     }
 
     #[inline]
@@ -82,7 +91,7 @@ impl<'a> Lexer<'a> {
             len += 1;
         }
 
-        let num_str = num_chars[..len].into_iter().collect::<String>();
+        let num_str = num_chars[..len].iter().collect::<String>();
         // SAFETY: it's safe to unwrap here because we've made sure that the array only has digits and at max of one `.`
         if has_dot {
             let num = num_str.parse::<f64>().unwrap();
@@ -220,7 +229,9 @@ impl<'a> Lexer<'a> {
             '0'..='9' => self.eat_number(),
             'a'..='z' | 'A'..='Z' | '_' => {
                 let ident = self.eat_ident();
-                todo!()
+                match ident {
+                    _ => todo!(),
+                }
             }
 
             _ => self.eat_punctuation()?,
