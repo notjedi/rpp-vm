@@ -121,6 +121,7 @@ impl KeyWord {
 #[derive(Debug, PartialEq)]
 #[allow(dead_code)]
 pub(crate) enum Token {
+    Eof,
     Ident(String),
     Comment(String),
     KeyWord(KeyWord),
