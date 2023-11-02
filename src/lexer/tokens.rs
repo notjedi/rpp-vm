@@ -52,6 +52,12 @@ pub(crate) enum KeyWord {
     FuncCall,
 }
 
+impl Into<Token> for KeyWord {
+    fn into(self) -> Token {
+        Token::KeyWord(self)
+    }
+}
+
 impl KeyWord {
     pub(crate) fn as_str(&self) -> &'static str {
         match self {
