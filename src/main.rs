@@ -6,18 +6,14 @@ use lexer::Lexer;
 
 fn main() {
     let program = r#"
-            EN VAZHI THANI VAZHI myfunc_one
-                DOT "Hello from myfunc_one!";
-                AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 100;
-                DOT "returning ix =" ix "to main";
-                IDHU EPDI IRUKKU ix;
-            MARAKKADHINGA
-
-            LAKSHMI START
-                DOT "Hi from main!";
-                y CHUMMA ADHURUDHULA myfunc_one;
-                DOT "Value returned from myfunc_one:" y;
-            MAGIZHCHI
+            BABA COUNTING STARTS True{
+                DOT ix;
+                ix BHAJJI SAAPDU ix + 1;
+                EN PEAR MANICKAM ix >= 5{
+                    DOT "breaking out of loop...";
+                    BLACK SHEEP;
+                }KATHAM KATHAM;
+            }KATHAM KATHAM;
         "#;
 
     let tokens = Lexer::tokenize_str(program).unwrap();

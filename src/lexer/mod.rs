@@ -288,9 +288,6 @@ impl<'a> Lexer<'a> {
             const { KeyWord::ForRangeEnd.as_str() } => KeyWord::ForRangeEnd.into(),
             _ => None,
         };
-        println!("\n");
-        dbg!(self.peek_n_words(3));
-        println!("\n");
         kw.and_then(|kw| {
             self.eat_n_idents(3);
             Some(kw)
@@ -310,17 +307,19 @@ impl<'a> Lexer<'a> {
     }
 
     fn match_keyword(&mut self) -> Token {
+        // NOTE: there is a difference b/w `or` and `or_else`, use only `or_else`.
+        // with `or` you are supposed to give it an Option which gets evaluated before anything even begins.
+        // but with `or_else`, it's a function which will be called only when the result is None.
         let kw = self
             .match_potential_four_word_kw()
-            .or(self.match_potential_triple_word_kw())
-            .or(self.match_potential_double_word_kw())
-            .or(self.match_potential_single_word_kw());
+            .or_else(|| self.match_potential_triple_word_kw())
+            .or_else(|| self.match_potential_double_word_kw())
+            .or_else(|| self.match_potential_single_word_kw());
         kw.map_or_else(|| Token::Ident(self.eat_ident()), |kw| Token::KeyWord(kw))
     }
 
     pub(crate) fn advance_token(&mut self) -> Result<Token, LexError> {
         self.skip_whitespace();
-
         let ch = match self.peek() {
             Some(ch) => ch,
             None => return Ok(Token::Eof),
@@ -346,7 +345,6 @@ mod tests {
     fn test_fizz_buzz() {
         let program = r#"
             EN VAZHI THANI VAZHI myfunc_one
-                DOT "Hello from myfunc_one!";
                 AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 100;
                 DOT "returning ix =" ix "to main";
                 IDHU EPDI IRUKKU ix;
@@ -354,23 +352,17 @@ mod tests {
 
             LAKSHMI START
                 !! checking exprs
-                AANDAVAN SOLLRAN addvar ARUNACHALAM SEIYARAN 25 + 15;
-                AANDAVAN SOLLRAN subvar ARUNACHALAM SEIYARAN 25 - 15;
-                AANDAVAN SOLLRAN mulvar ARUNACHALAM SEIYARAN 5 * 5;
-                AANDAVAN SOLLRAN divvar ARUNACHALAM SEIYARAN 5 / 5;
-                AANDAVAN SOLLRAN modvar ARUNACHALAM SEIYARAN 51 % 5;
-
-                !! testing literals
-                AANDAVAN SOLLRAN x ARUNACHALAM SEIYARAN 5.5;
-                AANDAVAN SOLLRAN y ARUNACHALAM SEIYARAN 15;
-                AANDAVAN SOLLRAN a ARUNACHALAM SEIYARAN x;
-                AANDAVAN SOLLRAN b ARUNACHALAM SEIYARAN y;
+                25 + 15;
+                25 - 15;
+                5.5 * -5;
+                5 / 5;
+                51 % 5;
 
                 !! testing while loop
                 BABA COUNTING STARTS True{
                     DOT ix;
                     ix BHAJJI SAAPDU ix + 1;
-                    EN PEAR MANICKAM ix > 5{
+                    EN PEAR MANICKAM ix >= 5{
                         DOT "breaking out of loop...";
                         BLACK SHEEP;
                     }KATHAM KATHAM;
@@ -395,7 +387,7 @@ mod tests {
                             }KATHAM KATHAM;
                         }KATHAM KATHAM;
                     }KATHAM KATHAM;
-                    ix BHAJJI SAAPDU ix + 1;
+                    ix BHAJJI SAAPDU ix+1;
                 }KATHAM KATHAM;
             MAGIZHCHI
         "#;
@@ -403,9 +395,6 @@ mod tests {
         let tokens = vec![
             KeyWord(FuncDeclare),
             Ident("myfunc_one".to_string()),
-            KeyWord(Print),
-            Literal(Str("Hello from myfunc_one!".to_string())),
-            KeyWord(SemiColon),
             KeyWord(StartDeclare),
             Ident("ix".to_string()),
             KeyWord(Declare),
@@ -422,64 +411,29 @@ mod tests {
             KeyWord(EndFunc),
             KeyWord(ProgramStart),
             Comment(" checking exprs".to_string()),
-            KeyWord(StartDeclare),
-            Ident("addvar".to_string()),
-            KeyWord(Declare),
             Literal(Int(25)),
             KeyWord(Sum),
             Literal(Int(15)),
             KeyWord(SemiColon),
-            KeyWord(StartDeclare),
-            Ident("subvar".to_string()),
-            KeyWord(Declare),
             Literal(Int(25)),
             KeyWord(Sub),
             Literal(Int(15)),
             KeyWord(SemiColon),
-            KeyWord(StartDeclare),
-            Ident("mulvar".to_string()),
-            KeyWord(Declare),
-            Literal(Int(5)),
+            Literal(Float(5.5)),
             KeyWord(Mul),
-            Literal(Int(5)),
+            Literal(Int(-5)),
             KeyWord(SemiColon),
-            KeyWord(StartDeclare),
-            Ident("divvar".to_string()),
-            KeyWord(Declare),
             Literal(Int(5)),
             KeyWord(Div),
             Literal(Int(5)),
             KeyWord(SemiColon),
-            KeyWord(StartDeclare),
-            Ident("modvar".to_string()),
-            KeyWord(Declare),
             Literal(Int(51)),
             KeyWord(Mod),
             Literal(Int(5)),
             KeyWord(SemiColon),
-            Comment(" testing literals".to_string()),
-            KeyWord(StartDeclare),
-            Ident("x".to_string()),
-            KeyWord(Declare),
-            Literal(Float(5.5)),
-            KeyWord(SemiColon),
-            KeyWord(StartDeclare),
-            Ident("y".to_string()),
-            KeyWord(Declare),
-            Literal(Int(15)),
-            KeyWord(SemiColon),
-            KeyWord(StartDeclare),
-            Ident("a".to_string()),
-            KeyWord(Declare),
-            Ident("x".to_string()),
-            KeyWord(SemiColon),
-            KeyWord(StartDeclare),
-            Ident("b".to_string()),
-            KeyWord(Declare),
-            Ident("y".to_string()),
-            KeyWord(SemiColon),
             Comment(" testing while loop".to_string()),
             KeyWord(WhileLoop),
+            KeyWord(BoolTrue),
             KeyWord(LeftBrace),
             KeyWord(Print),
             Ident("ix".to_string()),
@@ -492,7 +446,7 @@ mod tests {
             KeyWord(SemiColon),
             KeyWord(IfCond),
             Ident("ix".to_string()),
-            KeyWord(GreaterThan),
+            KeyWord(GreaterThanEqual),
             Literal(Int(5)),
             KeyWord(LeftBrace),
             KeyWord(Print),
