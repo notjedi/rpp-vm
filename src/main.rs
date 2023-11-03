@@ -1,3 +1,4 @@
+#![allow(incomplete_features)]
 #![feature(inline_const_pat)]
 
 mod lexer;
@@ -19,6 +20,6 @@ fn main() {
             MAGIZHCHI
         "#;
 
-    let tokens = Lexer::tokenize(program);
-    dbg!(tokens);
+    let tokens = Lexer::tokenize(program).unwrap();
+    println!("{tokens:?}");
 }

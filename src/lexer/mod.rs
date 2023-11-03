@@ -1,4 +1,5 @@
 mod tokens;
+use itertools::Itertools;
 pub(crate) use tokens::{KeyWord, Literal, Token};
 
 use std::{i64, iter::Peekable, str::Chars};
@@ -49,20 +50,11 @@ impl<'a> Lexer<'a> {
 
     #[inline]
     fn take_while(&mut self, predicate: impl Fn(&char) -> bool) -> String {
-        self.input
-            .by_ref()
-            .take_while(predicate)
-            .collect::<String>()
+        self.input.take_while_ref(predicate).collect::<String>()
     }
 
     fn skip_whitespace(&mut self) {
-        // self.take_while(|&ch| ch.is_ascii_whitespace());
-        while let Some(ch) = self.input.peek() {
-            if !ch.is_ascii_whitespace() {
-                break;
-            }
-            self.input.next();
-        }
+        self.take_while(|&ch| ch.is_ascii_whitespace());
     }
 
     fn eat_number(&mut self) -> Token {
@@ -70,12 +62,6 @@ impl<'a> Lexer<'a> {
         let mut len = 0;
         let mut has_dot = false;
         let mut num_chars = [0 as char; 128];
-
-        if let Some('-') = self.peek() {
-            num_chars[len] = '-';
-            len += 1;
-            self.consume();
-        }
 
         while let Some(ch) = self.peek() {
             if ch.is_ascii_digit() {
@@ -106,7 +92,8 @@ impl<'a> Lexer<'a> {
 
     fn eat_literal_str(&mut self) -> Result<String, LexError> {
         // NOTE: does not support `"` inside the string
-        let line = self.take_while(|&ch| ch == '"');
+        self.consume();
+        let line = self.take_while(|&ch| ch != '"');
         match self.peek() {
             Some('"') => {
                 self.consume();
@@ -120,6 +107,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn eat_literal_char(&mut self) -> Result<char, LexError> {
+        self.consume();
         let ch = self
             .consume()
             .ok_or(LexError::UnexpectedChar(char::default()));
@@ -179,7 +167,16 @@ impl<'a> Lexer<'a> {
 
         let token = match ch {
             '+' => KeyWord::Sum.into(),
-            '-' => KeyWord::Sub.into(),
+            '-' => match self.peek() {
+                Some('0'..='9') => match self.eat_number() {
+                    Token::Literal(Literal::Float(float_num)) => {
+                        Token::Literal(Literal::Float(-float_num))
+                    }
+                    Token::Literal(Literal::Int(int_num)) => Token::Literal(Literal::Int(-int_num)),
+                    _ => unreachable!(),
+                },
+                _ => KeyWord::Sub.into(),
+            },
             '*' => KeyWord::Mul.into(),
             '/' => KeyWord::Div.into(),
             '%' => KeyWord::Mod.into(),
@@ -290,7 +287,6 @@ impl<'a> Lexer<'a> {
             Some(ch) => ch,
             None => return Ok(Token::Eof),
         };
-        dbg!(ch);
 
         let token = match ch {
             '"' => Token::Literal(Literal::Str(self.eat_literal_str()?)),
@@ -331,8 +327,7 @@ impl<'a> Lexer<'a> {
                         _ => unreachable!(),
                     }
                 }
-                token.unwrap()
-                // todo!()
+                token.map_or_else(|| Token::Ident(self.eat_ident()), |token| token)
             }
 
             _ => self.eat_punctuation()?,
