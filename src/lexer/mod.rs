@@ -338,3 +338,246 @@ impl<'a> Lexer<'a> {
         Ok(token)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{KeyWord::*, Lexer, Literal::*, Token::*};
+
+    #[test]
+    fn test_fizz_buzz() {
+        let program = r#"
+            EN VAZHI THANI VAZHI myfunc_one
+                DOT "Hello from myfunc_one!";
+                AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 100;
+                DOT "returning ix =" ix "to main";
+                IDHU EPDI IRUKKU ix;
+            MARAKKADHINGA
+
+            LAKSHMI START
+                !! checking exprs
+                AANDAVAN SOLLRAN addvar ARUNACHALAM SEIYARAN 25 + 15;
+                AANDAVAN SOLLRAN subvar ARUNACHALAM SEIYARAN 25 - 15;
+                AANDAVAN SOLLRAN mulvar ARUNACHALAM SEIYARAN 5 * 5;
+                AANDAVAN SOLLRAN divvar ARUNACHALAM SEIYARAN 5 / 5;
+                AANDAVAN SOLLRAN modvar ARUNACHALAM SEIYARAN 51 % 5;
+
+                !! testing literals
+                AANDAVAN SOLLRAN x ARUNACHALAM SEIYARAN 5.5;
+                AANDAVAN SOLLRAN y ARUNACHALAM SEIYARAN 15;
+                AANDAVAN SOLLRAN a ARUNACHALAM SEIYARAN x;
+                AANDAVAN SOLLRAN b ARUNACHALAM SEIYARAN y;
+
+                !! testing while loop
+                BABA COUNTING STARTS True{
+                    DOT ix;
+                    ix BHAJJI SAAPDU ix + 1;
+                    EN PEAR MANICKAM ix > 5{
+                        DOT "breaking out of loop...";
+                        BLACK SHEEP;
+                    }KATHAM KATHAM;
+                }KATHAM KATHAM;
+
+                y CHUMMA ADHURUDHULA myfunc_one;
+
+                !! declare variables
+                AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 1;
+                AANDAVAN SOLLRAN range ARUNACHALAM SEIYARAN 16;
+
+                NAA 1 THADAVA SONNA range THADAVA SONNA MADHRI{
+                    EN PEAR MANICKAM ix%15==0{
+                        DOT "FizzBuzz";
+                    } ENAKKU INNURU PEAR IRUKKU{
+                        EN PEAR MANICKAM ix%3==0{
+                            DOT "Fizz";
+                        } ENAKKU INNURU PEAR IRUKKU{
+                            EN PEAR MANICKAM ix%5==0{
+                                DOT "Buzz";
+                            } ENAKKU INNURU PEAR IRUKKU{
+                                DOT ix;
+                            }KATHAM KATHAM;
+                        }KATHAM KATHAM;
+                    }KATHAM KATHAM;
+                    ix BHAJJI SAAPDU ix + 1;
+                !! End Loop
+                }KATHAM KATHAM;
+            MAGIZHCHI
+        "#;
+
+        let tokens = vec![
+            KeyWord(FuncDeclare),
+            Ident("myfunc_one".to_string()),
+            KeyWord(Print),
+            Literal(Str("Hello from myfunc_one!".to_string())),
+            KeyWord(SemiColon),
+            KeyWord(StartDeclare),
+            Ident("ix".to_string()),
+            KeyWord(Declare),
+            Literal(Int(100)),
+            KeyWord(SemiColon),
+            KeyWord(Print),
+            Literal(Str("returning ix =".to_string())),
+            Ident("ix".to_string()),
+            Literal(Str("to main".to_string())),
+            KeyWord(SemiColon),
+            KeyWord(FuncReturn),
+            Ident("ix".to_string()),
+            KeyWord(EndFunc),
+            KeyWord(ProgramStart),
+            Comment(" checking exprs".to_string()),
+            KeyWord(StartDeclare),
+            Ident("addvar".to_string()),
+            KeyWord(Declare),
+            Literal(Int(25)),
+            KeyWord(Sum),
+            Literal(Int(15)),
+            KeyWord(SemiColon),
+            KeyWord(StartDeclare),
+            Ident("subvar".to_string()),
+            KeyWord(Declare),
+            Literal(Int(25)),
+            KeyWord(Sub),
+            Literal(Int(15)),
+            KeyWord(SemiColon),
+            KeyWord(StartDeclare),
+            Ident("mulvar".to_string()),
+            KeyWord(Declare),
+            Literal(Int(5)),
+            KeyWord(Mul),
+            Literal(Int(5)),
+            KeyWord(SemiColon),
+            KeyWord(StartDeclare),
+            Ident("divvar".to_string()),
+            KeyWord(Declare),
+            Literal(Int(5)),
+            KeyWord(Div),
+            Literal(Int(5)),
+            KeyWord(SemiColon),
+            KeyWord(StartDeclare),
+            Ident("modvar".to_string()),
+            KeyWord(Declare),
+            Literal(Int(51)),
+            KeyWord(Mod),
+            Literal(Int(5)),
+            KeyWord(SemiColon),
+            Comment(" testing literals".to_string()),
+            KeyWord(StartDeclare),
+            Ident("x".to_string()),
+            KeyWord(Declare),
+            Literal(Float(5.5)),
+            KeyWord(SemiColon),
+            KeyWord(StartDeclare),
+            Ident("y".to_string()),
+            KeyWord(Declare),
+            Literal(Int(15)),
+            KeyWord(SemiColon),
+            KeyWord(StartDeclare),
+            Ident("a".to_string()),
+            KeyWord(Declare),
+            Ident("x".to_string()),
+            KeyWord(StartDeclare),
+            Ident("b".to_string()),
+            KeyWord(Declare),
+            Ident("y".to_string()),
+            Comment(" testing while loop".to_string()),
+            KeyWord(WhileLoop),
+            KeyWord(BoolTrue),
+            KeyWord(Print),
+            Ident("ix".to_string()),
+            Ident("ix".to_string()),
+            KeyWord(Assign),
+            Ident("ix".to_string()),
+            KeyWord(Sum),
+            Literal(Int(1)),
+            KeyWord(SemiColon),
+            KeyWord(IfCond),
+            Ident("ix".to_string()),
+            KeyWord(GreaterThan),
+            Literal(Int(5)),
+            KeyWord(LeftBrace),
+            KeyWord(Print),
+            Literal(Str("breaking out of loop...".to_string())),
+            KeyWord(SemiColon),
+            KeyWord(BreakLoop),
+            KeyWord(RightBrace),
+            KeyWord(EndBlock),
+            KeyWord(RightBrace),
+            KeyWord(EndBlock),
+            Ident("y".to_string()),
+            KeyWord(FuncCall),
+            Ident("myfunc_one".to_string()),
+            Comment(" declare variables".to_string()),
+            KeyWord(StartDeclare),
+            Ident("ix".to_string()),
+            KeyWord(Declare),
+            Literal(Int(1)),
+            KeyWord(SemiColon),
+            KeyWord(StartDeclare),
+            Ident("range".to_string()),
+            KeyWord(Declare),
+            Literal(Int(16)),
+            KeyWord(SemiColon),
+            KeyWord(ForStart),
+            Literal(Int(1)),
+            KeyWord(ForRangeStart),
+            Ident("range".to_string()),
+            KeyWord(ForRangeEnd),
+            KeyWord(IfCond),
+            Ident("ix".to_string()),
+            Literal(Int(15)),
+            KeyWord(Equal),
+            Literal(Int(0)),
+            KeyWord(LeftBrace),
+            KeyWord(Print),
+            Literal(Str("FizzBuzz".to_string())),
+            KeyWord(SemiColon),
+            KeyWord(RightBrace),
+            KeyWord(ElseCond),
+            KeyWord(IfCond),
+            Ident("ix".to_string()),
+            Literal(Int(3)),
+            KeyWord(Equal),
+            Literal(Int(0)),
+            KeyWord(LeftBrace),
+            KeyWord(Print),
+            Literal(Str("Fizz".to_string())),
+            KeyWord(SemiColon),
+            KeyWord(RightBrace),
+            KeyWord(ElseCond),
+            KeyWord(IfCond),
+            Ident("ix".to_string()),
+            Literal(Int(5)),
+            KeyWord(Equal),
+            Literal(Int(0)),
+            KeyWord(LeftBrace),
+            KeyWord(Print),
+            Literal(Str("Buzz".to_string())),
+            KeyWord(SemiColon),
+            KeyWord(RightBrace),
+            KeyWord(ElseCond),
+            KeyWord(Print),
+            Ident("ix".to_string()),
+            KeyWord(RightBrace),
+            KeyWord(EndBlock),
+            KeyWord(RightBrace),
+            KeyWord(EndBlock),
+            KeyWord(RightBrace),
+            KeyWord(EndBlock),
+            Ident("ix".to_string()),
+            KeyWord(Assign),
+            Ident("ix".to_string()),
+            KeyWord(Sum),
+            Literal(Int(1)),
+            KeyWord(SemiColon),
+            Comment(" End Loop".to_string()),
+            KeyWord(RightBrace),
+            KeyWord(EndBlock),
+            KeyWord(ProgramEnd),
+        ];
+
+        let mut lexer = Lexer::new(program);
+        for token in tokens {
+            let lex_token = lexer.advance_token();
+            assert_eq!(token, lex_token.unwrap());
+        }
+    }
+}
