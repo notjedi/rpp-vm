@@ -136,11 +136,11 @@ impl<'a> Lexer<'a> {
 
     #[inline]
     fn eat_ident(&mut self) -> String {
-        // NOTE: do not use self.take_while here cause we want to skip the whitespace after reading a word
-        self.input
-            .by_ref()
-            .take_while(|&ch| ch.is_ascii_alphabetic() || ch == '_')
-            .collect::<String>()
+        let ident = self.take_while(|&ch| ch.is_ascii_alphabetic() || ch == '_');
+        if let Some(' ') = self.peek() {
+            self.consume();
+        }
+        ident
     }
 
     #[inline]
@@ -246,8 +246,8 @@ impl<'a> Lexer<'a> {
             .collect::<String>()
     }
 
-    fn match_potential_single_word_kw(&self) -> Option<KeyWord> {
-        match self.peek_n_words(1).as_str() {
+    fn match_potential_single_word_kw(&mut self) -> Option<KeyWord> {
+        let kw = match self.peek_n_words(1).as_str() {
             const { KeyWord::Print.as_str() } => KeyWord::Print.into(),
             const { KeyWord::EndFunc.as_str() } => KeyWord::EndFunc.into(),
             const { KeyWord::ForStart.as_str() } => KeyWord::ForStart.into(),
@@ -255,11 +255,15 @@ impl<'a> Lexer<'a> {
             const { KeyWord::BoolFalse.as_str() } => KeyWord::BoolFalse.into(),
             const { KeyWord::ProgramEnd.as_str() } => KeyWord::ProgramEnd.into(),
             _ => None,
-        }
+        };
+        kw.and_then(|kw| {
+            self.eat_ident();
+            Some(kw)
+        })
     }
 
-    fn match_potential_double_word_kw(&self) -> Option<KeyWord> {
-        match self.peek_n_words(2).as_str() {
+    fn match_potential_double_word_kw(&mut self) -> Option<KeyWord> {
+        let kw = match self.peek_n_words(2).as_str() {
             const { KeyWord::Assign.as_str() } => KeyWord::Assign.into(),
             const { KeyWord::Declare.as_str() } => KeyWord::Declare.into(),
             const { KeyWord::EndBlock.as_str() } => KeyWord::EndBlock.into(),
@@ -269,53 +273,48 @@ impl<'a> Lexer<'a> {
             const { KeyWord::StartDeclare.as_str() } => KeyWord::StartDeclare.into(),
             const { KeyWord::ForRangeStart.as_str() } => KeyWord::ForRangeStart.into(),
             _ => None,
-        }
+        };
+        kw.and_then(|kw| {
+            self.eat_n_idents(2);
+            Some(kw)
+        })
     }
 
-    fn match_potential_triple_word_kw(&self) -> Option<KeyWord> {
-        match self.peek_n_words(3).as_str() {
+    fn match_potential_triple_word_kw(&mut self) -> Option<KeyWord> {
+        let kw = match self.peek_n_words(3).as_str() {
             const { KeyWord::IfCond.as_str() } => KeyWord::IfCond.into(),
             const { KeyWord::WhileLoop.as_str() } => KeyWord::WhileLoop.into(),
             const { KeyWord::FuncReturn.as_str() } => KeyWord::FuncReturn.into(),
             const { KeyWord::ForRangeEnd.as_str() } => KeyWord::ForRangeEnd.into(),
             _ => None,
-        }
+        };
+        println!("\n");
+        dbg!(self.peek_n_words(3));
+        println!("\n");
+        kw.and_then(|kw| {
+            self.eat_n_idents(3);
+            Some(kw)
+        })
     }
 
-    fn match_potential_four_word_kw(&self) -> Option<KeyWord> {
-        match self.peek_n_words(4).as_str() {
+    fn match_potential_four_word_kw(&mut self) -> Option<KeyWord> {
+        let kw = match self.peek_n_words(4).as_str() {
             const { KeyWord::ElseCond.as_str() } => KeyWord::ElseCond.into(),
             const { KeyWord::FuncDeclare.as_str() } => KeyWord::FuncDeclare.into(),
             _ => None,
-        }
+        };
+        kw.and_then(|kw| {
+            self.eat_n_idents(4);
+            Some(kw)
+        })
     }
 
     fn match_keyword(&mut self) -> Token {
-        let kw = None
-            .or_else(|| {
-                self.match_potential_four_word_kw().and_then(|kw| {
-                    self.eat_n_idents(4);
-                    Some(kw)
-                })
-            })
-            .or_else(|| {
-                self.match_potential_triple_word_kw().and_then(|kw| {
-                    self.eat_n_idents(3);
-                    Some(kw)
-                })
-            })
-            .or_else(|| {
-                self.match_potential_double_word_kw().and_then(|kw| {
-                    self.eat_n_idents(2);
-                    Some(kw)
-                })
-            })
-            .or_else(|| {
-                self.match_potential_single_word_kw().and_then(|kw| {
-                    self.eat_ident();
-                    Some(kw)
-                })
-            });
+        let kw = self
+            .match_potential_four_word_kw()
+            .or(self.match_potential_triple_word_kw())
+            .or(self.match_potential_double_word_kw())
+            .or(self.match_potential_single_word_kw());
         kw.map_or_else(|| Token::Ident(self.eat_ident()), |kw| Token::KeyWord(kw))
     }
 
@@ -379,7 +378,6 @@ mod tests {
 
                 y CHUMMA ADHURUDHULA myfunc_one;
 
-                !! declare variables
                 AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 1;
                 AANDAVAN SOLLRAN range ARUNACHALAM SEIYARAN 16;
 
@@ -398,7 +396,6 @@ mod tests {
                         }KATHAM KATHAM;
                     }KATHAM KATHAM;
                     ix BHAJJI SAAPDU ix + 1;
-                !! End Loop
                 }KATHAM KATHAM;
             MAGIZHCHI
         "#;
@@ -421,6 +418,7 @@ mod tests {
             KeyWord(SemiColon),
             KeyWord(FuncReturn),
             Ident("ix".to_string()),
+            KeyWord(SemiColon),
             KeyWord(EndFunc),
             KeyWord(ProgramStart),
             Comment(" checking exprs".to_string()),
@@ -474,15 +472,18 @@ mod tests {
             Ident("a".to_string()),
             KeyWord(Declare),
             Ident("x".to_string()),
+            KeyWord(SemiColon),
             KeyWord(StartDeclare),
             Ident("b".to_string()),
             KeyWord(Declare),
             Ident("y".to_string()),
+            KeyWord(SemiColon),
             Comment(" testing while loop".to_string()),
             KeyWord(WhileLoop),
-            KeyWord(BoolTrue),
+            KeyWord(LeftBrace),
             KeyWord(Print),
             Ident("ix".to_string()),
+            KeyWord(SemiColon),
             Ident("ix".to_string()),
             KeyWord(Assign),
             Ident("ix".to_string()),
@@ -498,14 +499,17 @@ mod tests {
             Literal(Str("breaking out of loop...".to_string())),
             KeyWord(SemiColon),
             KeyWord(BreakLoop),
+            KeyWord(SemiColon),
             KeyWord(RightBrace),
             KeyWord(EndBlock),
+            KeyWord(SemiColon),
             KeyWord(RightBrace),
             KeyWord(EndBlock),
+            KeyWord(SemiColon),
             Ident("y".to_string()),
             KeyWord(FuncCall),
             Ident("myfunc_one".to_string()),
-            Comment(" declare variables".to_string()),
+            KeyWord(SemiColon),
             KeyWord(StartDeclare),
             Ident("ix".to_string()),
             KeyWord(Declare),
@@ -521,8 +525,10 @@ mod tests {
             KeyWord(ForRangeStart),
             Ident("range".to_string()),
             KeyWord(ForRangeEnd),
+            KeyWord(LeftBrace),
             KeyWord(IfCond),
             Ident("ix".to_string()),
+            KeyWord(Mod),
             Literal(Int(15)),
             KeyWord(Equal),
             Literal(Int(0)),
@@ -532,8 +538,10 @@ mod tests {
             KeyWord(SemiColon),
             KeyWord(RightBrace),
             KeyWord(ElseCond),
+            KeyWord(LeftBrace),
             KeyWord(IfCond),
             Ident("ix".to_string()),
+            KeyWord(Mod),
             Literal(Int(3)),
             KeyWord(Equal),
             Literal(Int(0)),
@@ -543,8 +551,10 @@ mod tests {
             KeyWord(SemiColon),
             KeyWord(RightBrace),
             KeyWord(ElseCond),
+            KeyWord(LeftBrace),
             KeyWord(IfCond),
             Ident("ix".to_string()),
+            KeyWord(Mod),
             Literal(Int(5)),
             KeyWord(Equal),
             Literal(Int(0)),
@@ -554,30 +564,40 @@ mod tests {
             KeyWord(SemiColon),
             KeyWord(RightBrace),
             KeyWord(ElseCond),
+            KeyWord(LeftBrace),
             KeyWord(Print),
             Ident("ix".to_string()),
+            KeyWord(SemiColon),
             KeyWord(RightBrace),
             KeyWord(EndBlock),
+            KeyWord(SemiColon),
             KeyWord(RightBrace),
             KeyWord(EndBlock),
+            KeyWord(SemiColon),
             KeyWord(RightBrace),
             KeyWord(EndBlock),
+            KeyWord(SemiColon),
             Ident("ix".to_string()),
             KeyWord(Assign),
             Ident("ix".to_string()),
             KeyWord(Sum),
             Literal(Int(1)),
             KeyWord(SemiColon),
-            Comment(" End Loop".to_string()),
             KeyWord(RightBrace),
             KeyWord(EndBlock),
+            KeyWord(SemiColon),
             KeyWord(ProgramEnd),
         ];
 
         let mut lexer = Lexer::new(program);
-        for token in tokens {
-            let lex_token = lexer.advance_token();
-            assert_eq!(token, lex_token.unwrap());
+
+        for (i, token) in tokens.into_iter().enumerate() {
+            let lex_token = lexer.advance_token().unwrap();
+            assert_eq!(
+                token, lex_token,
+                "expected: {:?}, found: {:?} at pos: {}",
+                token, lex_token, i
+            );
         }
     }
 }
