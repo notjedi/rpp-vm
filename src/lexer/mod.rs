@@ -56,10 +56,12 @@ impl<'a> Lexer<'a> {
     }
 
     fn skip_whitespace(&mut self) {
-        while let Some(ch) = self.consume() {
+        // self.take_while(|&ch| ch.is_ascii_whitespace());
+        while let Some(ch) = self.input.peek() {
             if !ch.is_ascii_whitespace() {
                 break;
             }
+            self.input.next();
         }
     }
 
@@ -138,7 +140,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn eat_ident(&mut self) -> String {
-        self.take_while(|&ch| ch.is_ascii_alphabetic() || ch == '\n')
+        self.take_while(|&ch| ch.is_ascii_alphabetic() || ch == '_')
     }
 
     fn eat_potential_double_char_op(
@@ -215,6 +217,72 @@ impl<'a> Lexer<'a> {
         Ok(token)
     }
 
+    fn peek_n_words(&mut self, n: u32) -> String {
+        let mut num_spaces = 0;
+        self.input
+            .clone()
+            .take_while(|&ch| {
+                if ch == ' ' {
+                    num_spaces += 1;
+                }
+                (ch.is_ascii_alphabetic() || ch == '_' || ch == ' ') && num_spaces <= (n - 1)
+            })
+            .collect::<String>()
+    }
+
+    fn match_potential_single_word_kw(&mut self) -> Option<KeyWord> {
+        match self.peek_n_words(1).as_str() {
+            const { KeyWord::Print.as_str() } => KeyWord::Print.into(),
+            const { KeyWord::EndFunc.as_str() } => KeyWord::EndFunc.into(),
+            const { KeyWord::ForStart.as_str() } => KeyWord::ForStart.into(),
+            const { KeyWord::BoolTrue.as_str() } => KeyWord::BoolTrue.into(),
+            const { KeyWord::BoolFalse.as_str() } => KeyWord::BoolFalse.into(),
+            const { KeyWord::ProgramEnd.as_str() } => KeyWord::ProgramEnd.into(),
+            _ => None,
+        }
+    }
+
+    fn match_potential_double_word_kw(&mut self) -> Option<KeyWord> {
+        match self.peek_n_words(2).as_str() {
+            const { KeyWord::Assign.as_str() } => KeyWord::Assign.into(),
+            const { KeyWord::Declare.as_str() } => KeyWord::Declare.into(),
+            const { KeyWord::EndBlock.as_str() } => KeyWord::EndBlock.into(),
+            const { KeyWord::FuncCall.as_str() } => KeyWord::FuncCall.into(),
+            const { KeyWord::BreakLoop.as_str() } => KeyWord::BreakLoop.into(),
+            const { KeyWord::ProgramStart.as_str() } => KeyWord::ProgramStart.into(),
+            const { KeyWord::StartDeclare.as_str() } => KeyWord::StartDeclare.into(),
+            const { KeyWord::ForRangeStart.as_str() } => KeyWord::ForRangeStart.into(),
+            _ => None,
+        }
+    }
+
+    fn match_potential_triple_word_kw(&mut self) -> Option<KeyWord> {
+        match self.peek_n_words(3).as_str() {
+            const { KeyWord::IfCond.as_str() } => KeyWord::IfCond.into(),
+            const { KeyWord::WhileLoop.as_str() } => KeyWord::WhileLoop.into(),
+            const { KeyWord::FuncReturn.as_str() } => KeyWord::FuncReturn.into(),
+            const { KeyWord::ForRangeEnd.as_str() } => KeyWord::ForRangeEnd.into(),
+            _ => None,
+        }
+    }
+
+    fn match_potential_four_word_kw(&mut self) -> Option<KeyWord> {
+        match self.peek_n_words(4).as_str() {
+            const { KeyWord::ElseCond.as_str() } => KeyWord::ElseCond.into(),
+            const { KeyWord::FuncDeclare.as_str() } => KeyWord::FuncDeclare.into(),
+            _ => None,
+        }
+    }
+
+    fn match_keyword(&mut self) -> Option<Token> {
+        let kw = self
+            .match_potential_four_word_kw()
+            .or(self.match_potential_triple_word_kw())
+            .or(self.match_potential_double_word_kw())
+            .or(self.match_potential_single_word_kw());
+        kw.map_or_else(|| None, |kw| Some(Token::KeyWord(kw)))
+    }
+
     pub(crate) fn advance_token(&mut self) -> Result<Token, LexError> {
         self.skip_whitespace();
 
@@ -222,16 +290,49 @@ impl<'a> Lexer<'a> {
             Some(ch) => ch,
             None => return Ok(Token::Eof),
         };
+        dbg!(ch);
 
         let token = match ch {
             '"' => Token::Literal(Literal::Str(self.eat_literal_str()?)),
             '\'' => Token::Literal(Literal::Char(self.eat_literal_char()?)),
             '0'..='9' => self.eat_number(),
             'a'..='z' | 'A'..='Z' | '_' => {
-                let ident = self.eat_ident();
-                match ident {
-                    _ => todo!(),
+                let token = self.match_keyword();
+                let mut call_n_times = |n: u32| {
+                    (0..n).for_each(|_| {
+                        self.eat_ident();
+                    })
+                };
+                if let Some(Token::KeyWord(ref kw)) = token {
+                    match kw {
+                        KeyWord::ElseCond | KeyWord::FuncDeclare => call_n_times(4),
+
+                        KeyWord::IfCond
+                        | KeyWord::WhileLoop
+                        | KeyWord::FuncReturn
+                        | KeyWord::ForRangeEnd => call_n_times(3),
+
+                        KeyWord::Assign
+                        | KeyWord::Declare
+                        | KeyWord::EndBlock
+                        | KeyWord::FuncCall
+                        | KeyWord::BreakLoop
+                        | KeyWord::ProgramStart
+                        | KeyWord::StartDeclare
+                        | KeyWord::ForRangeStart => call_n_times(2),
+
+                        KeyWord::Print
+                        | KeyWord::EndFunc
+                        | KeyWord::ForStart
+                        | KeyWord::BoolTrue
+                        | KeyWord::BoolFalse
+                        | KeyWord::ProgramEnd => call_n_times(1),
+
+                        _ => unreachable!(),
+                    }
                 }
+                token.unwrap()
+                // todo!()
             }
 
             _ => self.eat_punctuation()?,

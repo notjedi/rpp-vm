@@ -1,8 +1,6 @@
 #[derive(Debug, PartialEq)]
 #[allow(dead_code)]
 pub(crate) enum Literal {
-    BoolTrue,
-    BoolFalse,
     Int(i64),
     Float(f64),
     Char(char),
@@ -34,6 +32,8 @@ pub(crate) enum KeyWord {
     Div,
     Mod,
 
+    BoolTrue,
+    BoolFalse,
     SemiColon,
     LeftBrace,
     RightBrace,
@@ -54,7 +54,7 @@ pub(crate) enum KeyWord {
 
 impl KeyWord {
     #[allow(dead_code)]
-    pub(crate) fn as_str(&self) -> &'static str {
+    pub(crate) const fn as_str(&self) -> &'static str {
         match self {
             KeyWord::ProgramStart => "LAKSHMI START",
             KeyWord::ProgramEnd => "MAGIZHCHI",
@@ -78,6 +78,8 @@ impl KeyWord {
             KeyWord::Div => "/",
             KeyWord::Mod => "%",
 
+            KeyWord::BoolTrue => "True",
+            KeyWord::BoolFalse => "False",
             KeyWord::SemiColon => ";",
             KeyWord::LeftBrace => "{",
             KeyWord::RightBrace => "}",
@@ -86,7 +88,7 @@ impl KeyWord {
             KeyWord::ElseCond => "ENAKKU INNURU PEAR IRUKKU",
             KeyWord::WhileLoop => "BABA COUNTING STARTS",
             KeyWord::ForStart => "NAA",
-            KeyWord::ForRangeStart => "THADAVA SONNA(?! MADHRI)",
+            KeyWord::ForRangeStart => "THADAVA SONNA",
             KeyWord::ForRangeEnd => "THADAVA SONNA MADHRI",
             KeyWord::EndBlock => "kaTHAM KATHAM",
             KeyWord::BreakLoop => "bLACK SHEEP",

@@ -1,3 +1,5 @@
+#![feature(inline_const_pat)]
+
 mod lexer;
 use lexer::Lexer;
 
