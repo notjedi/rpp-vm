@@ -39,6 +39,7 @@ impl<'a> Lexer<'a> {
         Ok(tokens)
     }
 
+    #[inline]
     fn consume(&mut self) -> Option<char> {
         self.input.next()
     }
@@ -50,9 +51,10 @@ impl<'a> Lexer<'a> {
 
     #[inline]
     fn take_while(&mut self, predicate: impl Fn(&char) -> bool) -> String {
-        self.input.take_while_ref(predicate).collect::<String>()
+        self.input.peeking_take_while(predicate).collect::<String>()
     }
 
+    #[inline]
     fn skip_whitespace(&mut self) {
         self.take_while(|&ch| ch.is_ascii_whitespace());
     }
@@ -123,12 +125,21 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    #[inline]
     fn eat_line(&mut self) -> String {
         self.take_while(|&ch| ch == '\n')
     }
 
+    #[inline]
     fn eat_ident(&mut self) -> String {
         self.take_while(|&ch| ch.is_ascii_alphabetic() || ch == '_')
+    }
+
+    #[inline]
+    fn eat_n_idents(&mut self, n: u32) {
+        (0..n).for_each(|_| {
+            self.eat_ident();
+        })
     }
 
     fn eat_potential_double_char_op(
@@ -214,7 +225,7 @@ impl<'a> Lexer<'a> {
         Ok(token)
     }
 
-    fn peek_n_words(&mut self, n: u32) -> String {
+    fn peek_n_words(&self, n: u32) -> String {
         let mut num_spaces = 0;
         self.input
             .clone()
@@ -227,7 +238,7 @@ impl<'a> Lexer<'a> {
             .collect::<String>()
     }
 
-    fn match_potential_single_word_kw(&mut self) -> Option<KeyWord> {
+    fn match_potential_single_word_kw(&self) -> Option<KeyWord> {
         match self.peek_n_words(1).as_str() {
             const { KeyWord::Print.as_str() } => KeyWord::Print.into(),
             const { KeyWord::EndFunc.as_str() } => KeyWord::EndFunc.into(),
@@ -239,7 +250,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn match_potential_double_word_kw(&mut self) -> Option<KeyWord> {
+    fn match_potential_double_word_kw(&self) -> Option<KeyWord> {
         match self.peek_n_words(2).as_str() {
             const { KeyWord::Assign.as_str() } => KeyWord::Assign.into(),
             const { KeyWord::Declare.as_str() } => KeyWord::Declare.into(),
@@ -253,7 +264,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn match_potential_triple_word_kw(&mut self) -> Option<KeyWord> {
+    fn match_potential_triple_word_kw(&self) -> Option<KeyWord> {
         match self.peek_n_words(3).as_str() {
             const { KeyWord::IfCond.as_str() } => KeyWord::IfCond.into(),
             const { KeyWord::WhileLoop.as_str() } => KeyWord::WhileLoop.into(),
@@ -263,7 +274,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn match_potential_four_word_kw(&mut self) -> Option<KeyWord> {
+    fn match_potential_four_word_kw(&self) -> Option<KeyWord> {
         match self.peek_n_words(4).as_str() {
             const { KeyWord::ElseCond.as_str() } => KeyWord::ElseCond.into(),
             const { KeyWord::FuncDeclare.as_str() } => KeyWord::FuncDeclare.into(),
@@ -271,13 +282,33 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn match_keyword(&mut self) -> Option<Token> {
-        let kw = self
-            .match_potential_four_word_kw()
-            .or(self.match_potential_triple_word_kw())
-            .or(self.match_potential_double_word_kw())
-            .or(self.match_potential_single_word_kw());
-        kw.map_or_else(|| None, |kw| Some(Token::KeyWord(kw)))
+    fn match_keyword(&mut self) -> Token {
+        let kw = None
+            .or_else(|| {
+                self.match_potential_four_word_kw().and_then(|kw| {
+                    self.eat_n_idents(4);
+                    Some(kw)
+                })
+            })
+            .or_else(|| {
+                self.match_potential_triple_word_kw().and_then(|kw| {
+                    self.eat_n_idents(3);
+                    Some(kw)
+                })
+            })
+            .or_else(|| {
+                self.match_potential_double_word_kw().and_then(|kw| {
+                    self.eat_n_idents(2);
+                    Some(kw)
+                })
+            })
+            .or_else(|| {
+                self.match_potential_single_word_kw().and_then(|kw| {
+                    self.eat_ident();
+                    Some(kw)
+                })
+            });
+        kw.map_or_else(|| Token::Ident(self.eat_ident()), |kw| Token::KeyWord(kw))
     }
 
     pub(crate) fn advance_token(&mut self) -> Result<Token, LexError> {
@@ -292,44 +323,7 @@ impl<'a> Lexer<'a> {
             '"' => Token::Literal(Literal::Str(self.eat_literal_str()?)),
             '\'' => Token::Literal(Literal::Char(self.eat_literal_char()?)),
             '0'..='9' => self.eat_number(),
-            'a'..='z' | 'A'..='Z' | '_' => {
-                let token = self.match_keyword();
-                let mut call_n_times = |n: u32| {
-                    (0..n).for_each(|_| {
-                        self.eat_ident();
-                    })
-                };
-                if let Some(Token::KeyWord(ref kw)) = token {
-                    match kw {
-                        KeyWord::ElseCond | KeyWord::FuncDeclare => call_n_times(4),
-
-                        KeyWord::IfCond
-                        | KeyWord::WhileLoop
-                        | KeyWord::FuncReturn
-                        | KeyWord::ForRangeEnd => call_n_times(3),
-
-                        KeyWord::Assign
-                        | KeyWord::Declare
-                        | KeyWord::EndBlock
-                        | KeyWord::FuncCall
-                        | KeyWord::BreakLoop
-                        | KeyWord::ProgramStart
-                        | KeyWord::StartDeclare
-                        | KeyWord::ForRangeStart => call_n_times(2),
-
-                        KeyWord::Print
-                        | KeyWord::EndFunc
-                        | KeyWord::ForStart
-                        | KeyWord::BoolTrue
-                        | KeyWord::BoolFalse
-                        | KeyWord::ProgramEnd => call_n_times(1),
-
-                        _ => unreachable!(),
-                    }
-                }
-                token.map_or_else(|| Token::Ident(self.eat_ident()), |token| token)
-            }
-
+            'a'..='z' | 'A'..='Z' | '_' => self.match_keyword(),
             _ => self.eat_punctuation()?,
         };
 
