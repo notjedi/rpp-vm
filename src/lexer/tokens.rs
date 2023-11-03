@@ -90,12 +90,12 @@ impl KeyWord {
             KeyWord::ForStart => "NAA",
             KeyWord::ForRangeStart => "THADAVA SONNA",
             KeyWord::ForRangeEnd => "THADAVA SONNA MADHRI",
-            KeyWord::EndBlock => "kaTHAM KATHAM",
-            KeyWord::BreakLoop => "bLACK SHEEP",
+            KeyWord::EndBlock => "KATHAM KATHAM",
+            KeyWord::BreakLoop => "BLACK SHEEP",
             KeyWord::FuncDeclare => "EN VAZHI THANI VAZHI",
-            KeyWord::EndFunc => "marAKKADHINGA",
+            KeyWord::EndFunc => "MARAKKADHINGA",
             KeyWord::FuncReturn => "IDHU EPDI IRUKKU",
-            KeyWord::FuncCall => "chUMMA ADHURUDHULA",
+            KeyWord::FuncCall => "CHUMMA ADHURUDHULA",
         }
     }
 }

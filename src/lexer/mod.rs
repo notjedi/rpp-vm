@@ -26,17 +26,21 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    pub(crate) fn tokenize(program: &str) -> Result<Vec<Token>, LexError> {
-        let mut lexer = Lexer::new(program);
+    pub(crate) fn tokensize(&mut self) -> Result<Vec<Token>, LexError> {
         let mut tokens = Vec::new();
         loop {
-            let token = lexer.advance_token()?;
+            let token = self.advance_token()?;
             if token == Token::Eof {
                 break;
             }
             tokens.push(token);
         }
         Ok(tokens)
+    }
+
+    pub(crate) fn tokenize_str(program: &str) -> Result<Vec<Token>, LexError> {
+        let mut lexer = Lexer::new(program);
+        lexer.tokensize()
     }
 
     #[inline]
@@ -127,12 +131,16 @@ impl<'a> Lexer<'a> {
 
     #[inline]
     fn eat_line(&mut self) -> String {
-        self.take_while(|&ch| ch == '\n')
+        self.take_while(|&ch| ch != '\n')
     }
 
     #[inline]
     fn eat_ident(&mut self) -> String {
-        self.take_while(|&ch| ch.is_ascii_alphabetic() || ch == '_')
+        // NOTE: do not use self.take_while here cause we want to skip the whitespace after reading a word
+        self.input
+            .by_ref()
+            .take_while(|&ch| ch.is_ascii_alphabetic() || ch == '_')
+            .collect::<String>()
     }
 
     #[inline]

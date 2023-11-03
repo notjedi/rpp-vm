@@ -14,12 +14,12 @@ fn main() {
             MARAKKADHINGA
 
             LAKSHMI START
-            DOT "Hi from main!";
-            y CHUMMA ADHURUDHULA myfunc_one;
-            DOT "Value returned from myfunc_one:" y;
+                DOT "Hi from main!";
+                y CHUMMA ADHURUDHULA myfunc_one;
+                DOT "Value returned from myfunc_one:" y;
             MAGIZHCHI
         "#;
 
-    let tokens = Lexer::tokenize(program).unwrap();
+    let tokens = Lexer::tokenize_str(program).unwrap();
     println!("{tokens:?}");
 }
