@@ -1,5 +1,4 @@
 #[derive(Debug, PartialEq)]
-#[allow(dead_code)]
 pub(crate) enum Literal {
     Int(i64),
     Float(f64),
@@ -8,7 +7,6 @@ pub(crate) enum Literal {
 }
 
 #[derive(Debug, PartialEq)]
-#[allow(dead_code)]
 pub(crate) enum KeyWord {
     ProgramStart,
     ProgramEnd,
@@ -53,7 +51,6 @@ pub(crate) enum KeyWord {
 }
 
 impl KeyWord {
-    #[allow(dead_code)]
     pub(crate) const fn as_str(&self) -> &'static str {
         match self {
             KeyWord::ProgramStart => "LAKSHMI START",
@@ -101,7 +98,6 @@ impl KeyWord {
 }
 
 #[derive(Debug, PartialEq)]
-#[allow(dead_code)]
 pub(crate) enum Token {
     Eof,
     Ident(String),

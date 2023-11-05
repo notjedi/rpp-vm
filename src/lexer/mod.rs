@@ -6,7 +6,6 @@ use std::{i64, iter::Peekable, str::Chars};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-#[allow(dead_code)]
 pub(crate) enum LexError {
     #[error("unexpected character {0}")]
     UnexpectedChar(char),
@@ -256,9 +255,9 @@ impl<'a> Lexer<'a> {
             const { KeyWord::ProgramEnd.as_str() } => KeyWord::ProgramEnd.into(),
             _ => None,
         };
-        kw.and_then(|kw| {
+        kw.map(|kw| {
             self.eat_ident();
-            Some(kw)
+            kw
         })
     }
 
@@ -274,9 +273,9 @@ impl<'a> Lexer<'a> {
             const { KeyWord::ForRangeStart.as_str() } => KeyWord::ForRangeStart.into(),
             _ => None,
         };
-        kw.and_then(|kw| {
+        kw.map(|kw| {
             self.eat_n_idents(2);
-            Some(kw)
+            kw
         })
     }
 
@@ -288,9 +287,9 @@ impl<'a> Lexer<'a> {
             const { KeyWord::ForRangeEnd.as_str() } => KeyWord::ForRangeEnd.into(),
             _ => None,
         };
-        kw.and_then(|kw| {
+        kw.map(|kw| {
             self.eat_n_idents(3);
-            Some(kw)
+            kw
         })
     }
 
@@ -300,9 +299,9 @@ impl<'a> Lexer<'a> {
             const { KeyWord::FuncDeclare.as_str() } => KeyWord::FuncDeclare.into(),
             _ => None,
         };
-        kw.and_then(|kw| {
+        kw.map(|kw| {
             self.eat_n_idents(4);
-            Some(kw)
+            kw
         })
     }
 
@@ -315,7 +314,7 @@ impl<'a> Lexer<'a> {
             .or_else(|| self.match_potential_triple_word_kw())
             .or_else(|| self.match_potential_double_word_kw())
             .or_else(|| self.match_potential_single_word_kw());
-        kw.map_or_else(|| Token::Ident(self.eat_ident()), |kw| Token::KeyWord(kw))
+        kw.map_or_else(|| Token::Ident(self.eat_ident()), Token::KeyWord)
     }
 
     pub(crate) fn advance_token(&mut self) -> Result<Token, LexError> {
