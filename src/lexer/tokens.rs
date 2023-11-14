@@ -1,12 +1,14 @@
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Literal {
+    BoolTrue,
+    BoolFalse,
     Int(i64),
     Float(f64),
     Char(char),
     Str(String),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) enum KeyWord {
     ProgramStart,
     ProgramEnd,
@@ -30,8 +32,6 @@ pub(crate) enum KeyWord {
     Div,
     Mod,
 
-    BoolTrue,
-    BoolFalse,
     SemiColon,
     LeftBrace,
     RightBrace,
@@ -75,8 +75,6 @@ impl KeyWord {
             KeyWord::Div => "/",
             KeyWord::Mod => "%",
 
-            KeyWord::BoolTrue => "True",
-            KeyWord::BoolFalse => "False",
             KeyWord::SemiColon => ";",
             KeyWord::LeftBrace => "{",
             KeyWord::RightBrace => "}",
@@ -97,7 +95,7 @@ impl KeyWord {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Token {
     Eof,
     Ident(String),

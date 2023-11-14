@@ -185,16 +185,7 @@ impl<'a> Lexer<'a> {
 
         let token = match ch {
             '+' => KeyWord::Sum.into(),
-            '-' => match self.peek() {
-                Some('0'..='9') => match self.eat_number() {
-                    Token::Literal(Literal::Float(float_num)) => {
-                        Token::Literal(Literal::Float(-float_num))
-                    }
-                    Token::Literal(Literal::Int(int_num)) => Token::Literal(Literal::Int(-int_num)),
-                    _ => unreachable!(),
-                },
-                _ => KeyWord::Sub.into(),
-            },
+            '-' => KeyWord::Sub.into(),
             '*' => KeyWord::Mul.into(),
             '/' => KeyWord::Div.into(),
             '%' => KeyWord::Mod.into(),
@@ -250,8 +241,6 @@ impl<'a> Lexer<'a> {
             const { KeyWord::Print.as_str() } => KeyWord::Print.into(),
             const { KeyWord::EndFunc.as_str() } => KeyWord::EndFunc.into(),
             const { KeyWord::ForStart.as_str() } => KeyWord::ForStart.into(),
-            const { KeyWord::BoolTrue.as_str() } => KeyWord::BoolTrue.into(),
-            const { KeyWord::BoolFalse.as_str() } => KeyWord::BoolFalse.into(),
             const { KeyWord::ProgramEnd.as_str() } => KeyWord::ProgramEnd.into(),
             _ => None,
         };
@@ -328,7 +317,17 @@ impl<'a> Lexer<'a> {
             '"' => Token::Literal(Literal::Str(self.eat_literal_str()?)),
             '\'' => Token::Literal(Literal::Char(self.eat_literal_char()?)),
             '0'..='9' => self.eat_number(),
-            'a'..='z' | 'A'..='Z' | '_' => self.match_keyword(),
+            'a'..='z' | 'A'..='Z' | '_' => match self.peek_n_words(1).as_str() {
+                "True" => {
+                    self.eat_n_idents(1);
+                    Token::Literal(Literal::BoolTrue)
+                }
+                "False" => {
+                    self.eat_n_idents(1);
+                    Token::Literal(Literal::BoolFalse)
+                }
+                _ => self.match_keyword(),
+            },
             _ => self.eat_punctuation()?,
         };
 
@@ -420,7 +419,8 @@ mod tests {
             KeyWord(SemiColon),
             Literal(Float(5.5)),
             KeyWord(Mul),
-            Literal(Int(-5)),
+            KeyWord(Sub),
+            Literal(Int(5)),
             KeyWord(SemiColon),
             Literal(Int(5)),
             KeyWord(Div),
@@ -432,7 +432,7 @@ mod tests {
             KeyWord(SemiColon),
             Comment(" testing while loop".to_string()),
             KeyWord(WhileLoop),
-            KeyWord(BoolTrue),
+            Literal(BoolTrue),
             KeyWord(LeftBrace),
             KeyWord(Print),
             Ident("ix".to_string()),
