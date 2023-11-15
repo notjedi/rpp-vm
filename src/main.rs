@@ -2,6 +2,7 @@
 #![feature(inline_const_pat)]
 
 mod lexer;
+mod parser;
 use lexer::Lexer;
 
 fn main() {
