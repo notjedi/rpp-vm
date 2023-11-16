@@ -173,7 +173,7 @@ impl Parser {
         }
         Err(ParseError::MissingExpectedToken {
             expected: token,
-            found: self.peek().unwrap_or(&Token::Eof).clone(),
+            found: self.peek().unwrap_or_default().clone(),
         })
     }
 
@@ -183,7 +183,7 @@ impl Parser {
             token => {
                 return Err(ParseError::MissingExpectedToken {
                     expected: Token::Ident("".to_string()),
-                    found: token.unwrap_or(Token::Eof),
+                    found: token.unwrap_or_default(),
                 })
             }
         }
@@ -209,7 +209,7 @@ impl Parser {
             token => {
                 return Err(ParseError::MissingExpectedToken {
                     expected: Token::Ident("func_name".to_string()),
-                    found: token.unwrap_or(Token::Eof),
+                    found: token.unwrap_or_default(),
                 })
             }
         };
@@ -229,7 +229,7 @@ impl Parser {
     }
 
     fn parse_statement(&mut self) -> Result<StmtKind, ParseError> {
-        let stmtkind = match self.consume().unwrap_or(Token::Eof) {
+        let stmtkind = match self.consume().unwrap_or_default() {
             Token::KeyWord(KeyWord::BreakLoop) => {
                 // BREAK_LOOP SEMI_COLON
                 self.expect(KeyWord::SemiColon.into())?;
@@ -298,7 +298,7 @@ impl Parser {
             Token::KeyWord(KeyWord::ForStart) => {
                 // FOR_START forvar FOR_RANGE_START forvar FOR_RANGE_END
                 // forvar := NUMBER | WORD
-                let for_start = match self.consume().unwrap_or(Token::Eof) {
+                let for_start = match self.consume().unwrap_or_default() {
                     Token::Ident(ident) => ForVar::Ident(ident),
                     Token::Literal(Literal::Int(num)) => ForVar::Int(num),
                     Token::Literal(Literal::Float(num)) => ForVar::Float(num),
@@ -310,7 +310,7 @@ impl Parser {
                     }
                 };
                 self.expect(Token::KeyWord(KeyWord::ForRangeStart))?;
-                let for_end = match self.consume().unwrap_or(Token::Eof) {
+                let for_end = match self.consume().unwrap_or_default() {
                     Token::Ident(ident) => ForVar::Ident(ident),
                     Token::Literal(Literal::Int(num)) => ForVar::Int(num),
                     Token::Literal(Literal::Float(num)) => ForVar::Float(num),
@@ -351,7 +351,7 @@ impl Parser {
             Token::Ident(ident) => {
                 // variable ASSIGN expression SEMI_COLON
                 // variable FUNC_CALL func_name SEMI_COLON
-                match self.consume().unwrap_or(Token::Eof) {
+                match self.consume().unwrap_or_default() {
                     Token::KeyWord(KeyWord::Assign) => {
                         let expr = self.parse_expression()?;
                         self.expect(Token::KeyWord(KeyWord::SemiColon))?;
@@ -361,7 +361,7 @@ impl Parser {
                         }
                     }
                     Token::KeyWord(KeyWord::FuncCall) => {
-                        let next_tok = self.consume().unwrap_or(Token::Eof);
+                        let next_tok = self.consume().unwrap_or_default();
                         if let Token::Ident(func_name) = next_tok {
                             self.expect(Token::KeyWord(KeyWord::SemiColon))?;
                             StmtKind::AssignFuncCall {
@@ -395,7 +395,7 @@ impl Parser {
     }
 
     fn parse_expression(&mut self) -> Result<Expr, ParseError> {
-        let stmtkind = match self.consume().unwrap_or(Token::Eof) {
+        let stmtkind = match self.consume().unwrap_or_default() {
             Token::KeyWord(KeyWord::Sub) | Token::KeyWord(KeyWord::Sum) => {
                 // TODO: this is totally wrong, should capture the current token and use that in UnaryExpr
                 // TODO: can replace peek with consume ig

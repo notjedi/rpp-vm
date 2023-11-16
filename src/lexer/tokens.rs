@@ -110,6 +110,12 @@ impl Default for Token {
     }
 }
 
+impl Default for &Token {
+    fn default() -> &'static Token {
+        &Token::Eof
+    }
+}
+
 impl From<KeyWord> for Token {
     fn from(val: KeyWord) -> Self {
         Token::KeyWord(val)
