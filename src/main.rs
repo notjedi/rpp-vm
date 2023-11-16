@@ -1,11 +1,14 @@
-#![allow(incomplete_features)]
+#![feature(let_chains)]
 #![feature(inline_const_pat)]
+#![allow(incomplete_features)]
 
 mod lexer;
 mod parser;
+use color_eyre::eyre::Result;
 use lexer::Lexer;
 
-fn main() {
+fn main() -> Result<()> {
+    color_eyre::install()?;
     let program = r#"
             BABA COUNTING STARTS True{
                 DOT ix;
@@ -19,4 +22,5 @@ fn main() {
 
     let tokens = Lexer::tokenize_str(program).unwrap();
     println!("{tokens:?}");
+    Ok(())
 }
