@@ -9,16 +9,18 @@ pub(crate) enum ParseError {
     MissingExpectedToken { expected: Token, found: Token },
 }
 
+#[derive(Debug)]
 pub(crate) enum ForVar {
     Int(i64),
     Float(f64),
     Ident(String),
 }
 
+#[derive(Debug)]
 pub(crate) enum StmtKind {
     BreakLoop,
     Expr(Expr),
-    Print(Expr),
+    Print(Vec<Expr>),
     FuncCall(String),
     FuncReturn(Expr),
     Assign {
@@ -43,6 +45,7 @@ pub(crate) enum StmtKind {
     },
 }
 
+#[derive(Debug)]
 pub(crate) enum BinaryOp {
     Add,
     Sub,
@@ -65,6 +68,7 @@ impl BinaryOp {
     }
 }
 
+#[derive(Debug)]
 pub(crate) enum LogicalOp {
     GreaterThan,
     LessThan,
@@ -74,6 +78,7 @@ pub(crate) enum LogicalOp {
     NotEqual,
 }
 
+#[derive(Debug)]
 pub(crate) enum ExprLeaf {
     BoolTrue,
     BoolFalse,
@@ -84,21 +89,23 @@ pub(crate) enum ExprLeaf {
 }
 
 impl ExprLeaf {
-    fn from_token(token: &Token) -> Option<Self> {
-        let leaf = match *token {
+    fn from_token(token: Token) -> Option<Self> {
+        let leaf = match token {
             Token::Literal(Literal::Float(num)) => Self::Float(num),
             Token::Literal(Literal::Int(num)) => Self::Int(num),
             Token::Literal(Literal::BoolTrue) => Self::BoolTrue,
             Token::Literal(Literal::BoolFalse) => Self::BoolFalse,
-            _ => todo!("support chars and strings"),
+            Token::Literal(Literal::Str(str)) => Self::Str(str),
+            Token::Literal(Literal::Char(ch)) => Self::Char(ch),
+            _ => return None,
         };
         Some(leaf)
     }
 
-    fn from_literal(literal: &Literal) -> Self {
-        match *literal {
+    fn from_literal(literal: Literal) -> Self {
+        match literal {
             Literal::Char(ch) => Self::Char(ch),
-            Literal::Str(ref string) => Self::Str(string.clone()),
+            Literal::Str(string) => Self::Str(string),
             Literal::Int(num) => Self::Int(num),
             Literal::Float(num) => Self::Float(num),
             Literal::BoolTrue => Self::BoolTrue,
@@ -108,6 +115,7 @@ impl ExprLeaf {
     }
 }
 
+#[derive(Debug)]
 pub(crate) enum Expr {
     BinaryExpr {
         op: BinaryOp,
@@ -127,14 +135,16 @@ pub(crate) enum Expr {
     Ident(String),
 }
 
+#[derive(Debug)]
 pub(crate) struct Function {
     name: String,
     body: Vec<StmtKind>,
 }
 
+#[derive(Debug)]
 pub(crate) struct Program {
-    functions: Vec<Function>,
-    main_stmts: Vec<StmtKind>,
+    pub(crate) functions: Vec<Function>,
+    pub(crate) main_stmts: Vec<StmtKind>,
 }
 
 pub(crate) struct Parser {
@@ -185,7 +195,10 @@ impl Parser {
             let func = self.parse_function()?;
             functions.push(func);
         }
-        todo!()
+        Ok(Program {
+            functions,
+            main_stmts: vec![],
+        })
     }
 
     fn parse_function(&mut self) -> Result<Function, ParseError> {
@@ -224,9 +237,13 @@ impl Parser {
             }
             Token::KeyWord(KeyWord::Print) => {
                 // PRINT printexprs SEMI_COLON
-                let expr = self.parse_expression()?;
+                let mut exprs = Vec::new();
+                while Some(&Token::KeyWord(KeyWord::SemiColon)) != self.peek() {
+                    let expr = self.parse_expression()?;
+                    exprs.push(expr);
+                }
                 self.expect(Token::KeyWord(KeyWord::SemiColon))?;
-                StmtKind::Print(expr)
+                StmtKind::Print(exprs)
             }
             Token::KeyWord(KeyWord::FuncCall) => {
                 // FUNC_CALL func_name SEMI_COLON
@@ -378,9 +395,9 @@ impl Parser {
     }
 
     fn parse_expression(&mut self) -> Result<Expr, ParseError> {
-        let stmtkind = match *self.peek().unwrap_or(&Token::Eof) {
+        let stmtkind = match self.consume().unwrap_or(Token::Eof) {
             Token::KeyWord(KeyWord::Sub) | Token::KeyWord(KeyWord::Sum) => {
-                self.consume();
+                // TODO: this is totally wrong, should capture the current token and use that in UnaryExpr
                 // TODO: can replace peek with consume ig
                 match self.peek() {
                     Some(tok) => {
@@ -403,32 +420,64 @@ impl Parser {
                     }
                 }
             }
-            Token::Literal(ref literal) => {
+            Token::Literal(literal) => {
                 // TODO: handle logical expressions
                 let lhs = Expr::ExprLeaf(ExprLeaf::from_literal(literal));
-                self.consume();
-                match self.peek() {
-                    Some(tok) => {
-                        let bin_op =
-                            BinaryOp::from_token(tok).ok_or(ParseError::MissingExpectedToken {
-                                expected: Token::KeyWord(KeyWord::Sum),
-                                found: tok.clone(),
-                            })?;
-                        let rhs = self.parse_expression()?;
-                        Expr::BinaryExpr {
-                            op: bin_op,
-                            lhs: Box::new(lhs),
-                            rhs: Box::new(rhs),
-                        }
+                if let Some(tok) = self.peek()
+                    && let Some(bin_op) = BinaryOp::from_token(tok)
+                {
+                    let rhs = self.parse_expression()?;
+                    Expr::BinaryExpr {
+                        op: bin_op,
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
                     }
-                    None => lhs,
+                } else {
+                    lhs
                 }
             }
-            ref token => {
-                dbg!("{:?}", token);
+            Token::Ident(ident) => Expr::Ident(ident),
+            token => {
+                // TODO: error out here
                 unimplemented!()
             }
         };
         Ok(stmtkind)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use color_eyre::eyre::Result;
+
+    use crate::lexer::{Lexer, Token};
+
+    use super::Parser;
+
+    #[test]
+    fn test_parser() -> Result<()> {
+        color_eyre::install()?;
+        let program = r#"
+            EN VAZHI THANI VAZHI myfunc_one
+                AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 100;
+                DOT "returning ix =" ix "to main";
+                IDHU EPDI IRUKKU ix;
+            MARAKKADHINGA
+        "#;
+
+        let mut lexer = Lexer::new(program);
+        let mut tokens = Vec::new();
+        while let Ok(token) = lexer.advance_token() {
+            if token == Token::Eof {
+                tokens.push(token);
+                break;
+            }
+            tokens.push(token);
+        }
+        let mut parser = Parser::new(tokens);
+        let ast = parser.parse().unwrap();
+        dbg!(ast.functions);
+        // assert!(false);
+        Ok(())
     }
 }
