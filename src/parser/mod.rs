@@ -7,6 +7,8 @@ use thiserror::Error;
 pub(crate) enum ParseError {
     #[error("expected: {expected:?}, found: {found:?}")]
     MissingExpectedToken { expected: Token, found: Token },
+    #[error("unexpected token: {0:?}")]
+    UnexpectedToken(Token),
 }
 
 #[derive(Debug)]
@@ -56,7 +58,7 @@ pub(crate) enum BinaryOp {
 
 impl BinaryOp {
     fn from_token(token: &Token) -> Option<Self> {
-        let op = match *token {
+        let op = match token {
             Token::KeyWord(KeyWord::Sum) => Self::Add,
             Token::KeyWord(KeyWord::Sub) => Self::Sub,
             Token::KeyWord(KeyWord::Mul) => Self::Mul,
@@ -195,6 +197,7 @@ impl Parser {
             let func = self.parse_function()?;
             functions.push(func);
         }
+        // TODO: parse main function
         Ok(Program {
             functions,
             main_stmts: vec![],
@@ -214,11 +217,12 @@ impl Parser {
             }
         };
         let mut statements = Vec::new();
-        while let Some(token) = self.peek() {
-            if token == &Token::KeyWord(KeyWord::EndFunc) {
-                break;
-            }
+        while let Some(token) = self.peek()
+            && token != &Token::KeyWord(KeyWord::EndFunc)
+        {
             let stmt = self.parse_statement()?;
+            dbg!(&stmt);
+            dbg!(self.peek());
             statements.push(stmt);
         }
         self.expect(Token::KeyWord(KeyWord::EndFunc))?;
@@ -229,30 +233,35 @@ impl Parser {
     }
 
     fn parse_statement(&mut self) -> Result<StmtKind, ParseError> {
-        let stmtkind = match self.consume().unwrap_or_default() {
+        let stmtkind = match self.peek().unwrap_or_default() {
             Token::KeyWord(KeyWord::BreakLoop) => {
                 // BREAK_LOOP SEMI_COLON
+                self.consume();
                 self.expect(KeyWord::SemiColon.into())?;
                 StmtKind::BreakLoop
             }
             Token::KeyWord(KeyWord::Print) => {
                 // PRINT printexprs SEMI_COLON
+                // printexprs := printexprs expression
+                self.consume();
                 let mut exprs = Vec::new();
                 while Some(&Token::KeyWord(KeyWord::SemiColon)) != self.peek() {
                     let expr = self.parse_expression()?;
                     exprs.push(expr);
                 }
-                self.expect(Token::KeyWord(KeyWord::SemiColon))?;
+                self.consume();
                 StmtKind::Print(exprs)
             }
             Token::KeyWord(KeyWord::FuncCall) => {
                 // FUNC_CALL func_name SEMI_COLON
+                self.consume();
                 let func_name = self.expect_ident()?;
                 self.expect(Token::KeyWord(KeyWord::SemiColon))?;
                 StmtKind::FuncCall(func_name)
             }
             Token::KeyWord(KeyWord::FuncReturn) => {
                 // FUNC_RETURN expression SEMI_COLON
+                self.consume();
                 let expr = self.parse_expression()?;
                 self.expect(Token::KeyWord(KeyWord::SemiColon))?;
                 StmtKind::FuncReturn(expr)
@@ -260,6 +269,7 @@ impl Parser {
             Token::KeyWord(KeyWord::StartDeclare) => {
                 // START_DECLARE variable DECLARE expression SEMI_COLON
                 // START_DECLARE variable DECLARE_ALT expression SEMI_COLON
+                self.consume();
                 let var = self.expect_ident()?;
                 self.expect(Token::KeyWord(KeyWord::Declare))
                     .or_else(|_| self.expect(Token::KeyWord(KeyWord::DeclareAlt)))?;
@@ -274,14 +284,14 @@ impl Parser {
                 // IF_COND logical_expression L_BRACE statements R_BRACE
                 // IF_COND logical_expression L_BRACE statements R_BRACE END_BLOCK SEMI_COLON
                 // TODO: make sure expr is a logical expression
+                self.consume();
                 let expr = self.parse_expression()?;
                 self.expect(Token::KeyWord(KeyWord::LeftBrace))?;
                 let mut statements = Vec::new();
                 // TODO: handle eof cases, where self.peek() == None
-                while let Some(token) = self.peek() {
-                    if token == &Token::KeyWord(KeyWord::RightBrace) {
-                        break;
-                    }
+                while let Some(token) = self.peek()
+                    && token != &Token::KeyWord(KeyWord::RightBrace)
+                {
                     let stmt = self.parse_statement()?;
                     statements.push(stmt);
                 }
@@ -298,6 +308,7 @@ impl Parser {
             Token::KeyWord(KeyWord::ForStart) => {
                 // FOR_START forvar FOR_RANGE_START forvar FOR_RANGE_END
                 // forvar := NUMBER | WORD
+                self.consume();
                 let for_start = match self.consume().unwrap_or_default() {
                     Token::Ident(ident) => ForVar::Ident(ident),
                     Token::Literal(Literal::Int(num)) => ForVar::Int(num),
@@ -329,14 +340,14 @@ impl Parser {
             }
             Token::KeyWord(KeyWord::WhileLoop) => {
                 // WHILE_LOOP expression L_BRACE statements R_BRACE END_BLOCK SEMI_COLON
+                self.consume();
                 let expr = self.parse_expression()?;
                 self.expect(Token::KeyWord(KeyWord::LeftBrace))?;
                 let mut statements = Vec::new();
                 // TODO: handle eof cases, where self.peek() == None
-                while let Some(token) = self.peek() {
-                    if token == &Token::KeyWord(KeyWord::RightBrace) {
-                        break;
-                    }
+                while let Some(token) = self.peek()
+                    && token != &Token::KeyWord(KeyWord::RightBrace)
+                {
                     let stmt = self.parse_statement()?;
                     statements.push(stmt);
                 }
@@ -348,9 +359,12 @@ impl Parser {
                     body: statements,
                 }
             }
-            Token::Ident(ident) => {
+            Token::Ident(_) => {
                 // variable ASSIGN expression SEMI_COLON
                 // variable FUNC_CALL func_name SEMI_COLON
+                let Token::Ident(ident) = self.consume().unwrap() else {
+                    unreachable!()
+                };
                 match self.consume().unwrap_or_default() {
                     Token::KeyWord(KeyWord::Assign) => {
                         let expr = self.parse_expression()?;
@@ -395,29 +409,14 @@ impl Parser {
     }
 
     fn parse_expression(&mut self) -> Result<Expr, ParseError> {
+        dbg!(&self.peek());
         let stmtkind = match self.consume().unwrap_or_default() {
-            Token::KeyWord(KeyWord::Sub) | Token::KeyWord(KeyWord::Sum) => {
-                // TODO: this is totally wrong, should capture the current token and use that in UnaryExpr
-                // TODO: can replace peek with consume ig
-                match self.peek() {
-                    Some(tok) => {
-                        let bin_op =
-                            BinaryOp::from_token(tok).ok_or(ParseError::MissingExpectedToken {
-                                expected: Token::KeyWord(KeyWord::Sum),
-                                found: tok.clone(),
-                            })?;
-                        self.consume();
-                        Expr::UnaryExpr {
-                            op: bin_op,
-                            child: Box::new(self.parse_expression()?),
-                        }
-                    }
-                    None => {
-                        return Err(ParseError::MissingExpectedToken {
-                            expected: Token::Literal(Literal::Int(0)),
-                            found: Token::Eof,
-                        })
-                    }
+            Token::KeyWord(op @ KeyWord::Sub) | Token::KeyWord(op @ KeyWord::Sum) => {
+                // TODO: check if this impl is correct
+                let op = BinaryOp::from_token(&Token::KeyWord(op)).unwrap();
+                Expr::UnaryExpr {
+                    op,
+                    child: Box::new(self.parse_expression()?),
                 }
             }
             Token::Literal(literal) => {
@@ -426,6 +425,7 @@ impl Parser {
                 if let Some(tok) = self.peek()
                     && let Some(bin_op) = BinaryOp::from_token(tok)
                 {
+                    self.consume();
                     let rhs = self.parse_expression()?;
                     Expr::BinaryExpr {
                         op: bin_op,
@@ -437,10 +437,7 @@ impl Parser {
                 }
             }
             Token::Ident(ident) => Expr::Ident(ident),
-            token => {
-                // TODO: error out here
-                unimplemented!()
-            }
+            token => return Err(ParseError::UnexpectedToken(token)),
         };
         Ok(stmtkind)
     }
@@ -462,6 +459,11 @@ mod tests {
                 AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 100;
                 DOT "returning ix =" ix "to main";
                 IDHU EPDI IRUKKU ix;
+                25 + 15;
+                25 - 15;
+                5.5 * -5;
+                5 / 5;
+                51 % 5 * 10 / 2;
             MARAKKADHINGA
         "#;
 
