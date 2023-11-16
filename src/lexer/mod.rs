@@ -540,6 +540,7 @@ mod tests {
             KeyWord(EndBlock),
             KeyWord(SemiColon),
             KeyWord(ProgramEnd),
+            Eof,
         ];
 
         let mut lexer = Lexer::new(program);

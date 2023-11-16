@@ -104,6 +104,12 @@ pub(crate) enum Token {
     Literal(Literal),
 }
 
+impl Default for Token {
+    fn default() -> Self {
+        Self::Eof
+    }
+}
+
 impl From<KeyWord> for Token {
     fn from(val: KeyWord) -> Self {
         Token::KeyWord(val)
