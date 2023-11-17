@@ -80,6 +80,21 @@ pub(crate) enum LogicalOp {
     NotEqual,
 }
 
+impl LogicalOp {
+    fn from_token(token: &Token) -> Option<Self> {
+        let op = match token {
+            Token::KeyWord(KeyWord::GreaterThan) => Self::GreaterThan,
+            Token::KeyWord(KeyWord::LessThan) => Self::LessThan,
+            Token::KeyWord(KeyWord::GreaterThanEqual) => Self::GreaterThanEqual,
+            Token::KeyWord(KeyWord::LessThanEqual) => Self::LessThanEqual,
+            Token::KeyWord(KeyWord::Equal) => Self::Equal,
+            Token::KeyWord(KeyWord::NotEqual) => Self::NotEqual,
+            _ => return None,
+        };
+        Some(op)
+    }
+}
+
 #[derive(Debug)]
 pub(crate) enum ExprLeaf {
     BoolTrue,
@@ -221,8 +236,6 @@ impl Parser {
             && token != &Token::KeyWord(KeyWord::EndFunc)
         {
             let stmt = self.parse_statement()?;
-            dbg!(&stmt);
-            dbg!(self.peek());
             statements.push(stmt);
         }
         self.expect(Token::KeyWord(KeyWord::EndFunc))?;
@@ -409,18 +422,17 @@ impl Parser {
     }
 
     fn parse_expression(&mut self) -> Result<Expr, ParseError> {
-        dbg!(&self.peek());
-        let stmtkind = match self.consume().unwrap_or_default() {
-            Token::KeyWord(op @ KeyWord::Sub) | Token::KeyWord(op @ KeyWord::Sum) => {
+        let expr = match self.consume().unwrap_or_default() {
+            op @ Token::KeyWord(KeyWord::Sub) | op @ Token::KeyWord(KeyWord::Sum) => {
                 // TODO: check if this impl is correct
-                let op = BinaryOp::from_token(&Token::KeyWord(op)).unwrap();
+                let op = BinaryOp::from_token(&op).unwrap();
                 Expr::UnaryExpr {
                     op,
                     child: Box::new(self.parse_expression()?),
                 }
             }
+            // TODO: cleanup Token::Literal(literal) and Token::Ident(ident)
             Token::Literal(literal) => {
-                // TODO: handle logical expressions
                 let lhs = Expr::ExprLeaf(ExprLeaf::from_literal(literal));
                 if let Some(tok) = self.peek()
                     && let Some(bin_op) = BinaryOp::from_token(tok)
@@ -432,14 +444,49 @@ impl Parser {
                         lhs: Box::new(lhs),
                         rhs: Box::new(rhs),
                     }
+                } else if let Some(tok) = self.peek()
+                    && let Some(log_op) = LogicalOp::from_token(tok)
+                {
+                    self.consume();
+                    let rhs = self.parse_expression()?;
+                    Expr::LogicalExpr {
+                        op: log_op,
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
+                    }
                 } else {
                     lhs
                 }
             }
-            Token::Ident(ident) => Expr::Ident(ident),
+            Token::Ident(ident) => {
+                let lhs = Expr::Ident(ident);
+                if let Some(tok) = self.peek()
+                    && let Some(bin_op) = BinaryOp::from_token(tok)
+                {
+                    self.consume();
+                    let rhs = self.parse_expression()?;
+                    Expr::BinaryExpr {
+                        op: bin_op,
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
+                    }
+                } else if let Some(tok) = self.peek()
+                    && let Some(log_op) = LogicalOp::from_token(tok)
+                {
+                    self.consume();
+                    let rhs = self.parse_expression()?;
+                    Expr::LogicalExpr {
+                        op: log_op,
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
+                    }
+                } else {
+                    lhs
+                }
+            }
             token => return Err(ParseError::UnexpectedToken(token)),
         };
-        Ok(stmtkind)
+        Ok(expr)
     }
 }
 
@@ -464,6 +511,15 @@ mod tests {
                 5.5 * -5;
                 5 / 5;
                 51 % 5 * 10 / 2;
+
+                BABA COUNTING STARTS True{
+                    DOT ix;
+                    ix BHAJJI SAAPDU ix + 1;
+                    EN PEAR MANICKAM ix >= 5{
+                        DOT "breaking out of loop...";
+                        BLACK SHEEP;
+                    }KATHAM KATHAM;
+                }KATHAM KATHAM;
             MARAKKADHINGA
         "#;
 
