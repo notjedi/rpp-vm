@@ -127,7 +127,6 @@ impl ExprLeaf {
             Literal::Float(num) => Self::Float(num),
             Literal::BoolTrue => Self::BoolTrue,
             Literal::BoolFalse => Self::BoolFalse,
-            _ => unreachable!(),
         }
     }
 }
@@ -197,12 +196,10 @@ impl Parser {
     fn expect_ident(&mut self) -> Result<String, ParseError> {
         match self.consume() {
             Some(Token::Ident(ident)) => Ok(ident),
-            token => {
-                return Err(ParseError::MissingExpectedToken {
-                    expected: Token::Ident("".to_string()),
-                    found: token.unwrap_or_default(),
-                })
-            }
+            token => Err(ParseError::MissingExpectedToken {
+                expected: Token::Ident("".to_string()),
+                found: token.unwrap_or_default(),
+            }),
         }
     }
 
@@ -494,7 +491,7 @@ impl Parser {
 mod tests {
     use color_eyre::eyre::Result;
 
-    use crate::lexer::{Lexer, Token};
+    use crate::lexer::Lexer;
 
     use super::Parser;
 
@@ -523,19 +520,11 @@ mod tests {
             MARAKKADHINGA
         "#;
 
-        let mut lexer = Lexer::new(program);
-        let mut tokens = Vec::new();
-        while let Ok(token) = lexer.advance_token() {
-            if token == Token::Eof {
-                tokens.push(token);
-                break;
-            }
-            tokens.push(token);
-        }
+        let tokens = Lexer::tokenize_str(program).unwrap();
         let mut parser = Parser::new(tokens);
         let ast = parser.parse().unwrap();
-        dbg!(ast.functions);
         // assert!(false);
+        dbg!(ast.functions);
         Ok(())
     }
 }
