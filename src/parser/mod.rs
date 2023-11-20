@@ -22,6 +22,7 @@ pub(crate) enum ForVar {
 pub(crate) enum StmtKind {
     BreakLoop,
     Expr(Expr),
+    Comment(String),
     Print(Vec<Expr>),
     FuncCall(String),
     FuncReturn(Expr),
@@ -36,10 +37,12 @@ pub(crate) enum StmtKind {
     IfCond {
         condition: Expr,
         body: Vec<StmtKind>,
+        else_body: Vec<StmtKind>,
     },
     ForLoop {
         start: ForVar,
         end: ForVar,
+        body: Vec<StmtKind>,
     },
     WhileLoop {
         condition: Expr,
@@ -239,6 +242,12 @@ impl Parser {
 
     fn parse_statement(&mut self) -> Result<StmtKind, ParseError> {
         let stmtkind = match self.peek().unwrap_or_default() {
+            Token::Comment(_) => {
+                let Token::Comment(comment) = self.consume().unwrap() else {
+                    unreachable!()
+                };
+                StmtKind::Comment(comment)
+            }
             Token::KeyWord(KeyWord::BreakLoop) => {
                 // BREAK_LOOP SEMI_COLON
                 self.consume();
@@ -286,13 +295,15 @@ impl Parser {
                 }
             }
             Token::KeyWord(KeyWord::IfCond) => {
-                // IF_COND logical_expression L_BRACE statements R_BRACE
                 // IF_COND logical_expression L_BRACE statements R_BRACE END_BLOCK SEMI_COLON
+                // IF_COND logical_expression L_BRACE statements R_BRACE ELSE_COND L_BRACE statements R_BRACE END_BLOCK SEMI_COLON
                 // TODO: make sure expr is a logical expression
                 self.consume();
                 let expr = self.parse_expression()?;
                 self.expect(Token::KeyWord(KeyWord::LeftBrace))?;
                 let mut statements = Vec::new();
+                let mut else_statements = Vec::new();
+
                 // TODO: handle eof cases, where self.peek() == None
                 while let Some(token) = self.peek()
                     && token != &Token::KeyWord(KeyWord::RightBrace)
@@ -301,17 +312,38 @@ impl Parser {
                     statements.push(stmt);
                 }
                 self.consume(); // consume the R_BRACE
-                if self.peek() == Some(&Token::KeyWord(KeyWord::EndBlock)) {
-                    self.consume();
-                    self.expect(Token::KeyWord(KeyWord::SemiColon))?;
+
+                match self.consume() {
+                    Some(Token::KeyWord(KeyWord::EndBlock)) => {
+                        self.expect(Token::KeyWord(KeyWord::SemiColon))?;
+                    }
+                    Some(Token::KeyWord(KeyWord::ElseCond)) => {
+                        self.expect(Token::KeyWord(KeyWord::LeftBrace))?;
+                        while let Some(token) = self.peek()
+                            && token != &Token::KeyWord(KeyWord::RightBrace)
+                        {
+                            let stmt = self.parse_statement()?;
+                            else_statements.push(stmt);
+                        }
+                        self.expect(Token::KeyWord(KeyWord::RightBrace))?;
+                        self.expect(Token::KeyWord(KeyWord::EndBlock))?;
+                        self.expect(Token::KeyWord(KeyWord::SemiColon))?;
+                    }
+                    tok => {
+                        return Err(ParseError::MissingExpectedToken {
+                            expected: Token::KeyWord(KeyWord::EndBlock),
+                            found: tok.unwrap_or_default(),
+                        });
+                    }
                 }
                 StmtKind::IfCond {
                     condition: expr,
                     body: statements,
+                    else_body: else_statements,
                 }
             }
             Token::KeyWord(KeyWord::ForStart) => {
-                // FOR_START forvar FOR_RANGE_START forvar FOR_RANGE_END
+                // FOR_START forvar FOR_RANGE_START forvar FOR_RANGE_END L_BRACE statements R_BRACE END_BLOCK SEMI_COLON"
                 // forvar := NUMBER | WORD
                 self.consume();
                 let for_start = match self.consume().unwrap_or_default() {
@@ -338,9 +370,22 @@ impl Parser {
                     }
                 };
                 self.expect(Token::KeyWord(KeyWord::ForRangeEnd))?;
+                self.expect(Token::KeyWord(KeyWord::LeftBrace))?;
+                let mut statements = Vec::new();
+                // TODO: handle eof cases, where self.peek() == None
+                while let Some(token) = self.peek()
+                    && token != &Token::KeyWord(KeyWord::RightBrace)
+                {
+                    let stmt = self.parse_statement()?;
+                    statements.push(stmt);
+                }
+                self.consume();
+                self.expect(Token::KeyWord(KeyWord::EndBlock))?;
+                self.expect(Token::KeyWord(KeyWord::SemiColon))?;
                 StmtKind::ForLoop {
                     start: for_start,
                     end: for_end,
+                    body: statements,
                 }
             }
             Token::KeyWord(KeyWord::WhileLoop) => {
@@ -475,12 +520,17 @@ mod tests {
                 AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 100;
                 DOT "returning ix =" ix "to main";
                 IDHU EPDI IRUKKU ix;
+            MARAKKADHINGA
+
+            LAKSHMI START
+                !! checking exprs
                 25 + 15;
                 25 - 15;
                 5.5 * -5;
                 5 / 5;
-                51 % 5 * 10 / 2;
+                51 % 5;
 
+                !! testing while loop
                 BABA COUNTING STARTS True{
                     DOT ix;
                     ix BHAJJI SAAPDU ix + 1;
@@ -489,9 +539,28 @@ mod tests {
                         BLACK SHEEP;
                     }KATHAM KATHAM;
                 }KATHAM KATHAM;
-            MARAKKADHINGA
 
-            LAKSHMI START
+                y CHUMMA ADHURUDHULA myfunc_one;
+
+                AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 1;
+                AANDAVAN SOLLRAN range ARUNACHALAM SEIYARAN 16;
+
+                NAA 1 THADAVA SONNA range THADAVA SONNA MADHRI{
+                    EN PEAR MANICKAM ix%15==0{
+                        DOT "FizzBuzz";
+                    } ENAKKU INNURU PEAR IRUKKU{
+                        EN PEAR MANICKAM ix%3==0{
+                            DOT "Fizz";
+                        } ENAKKU INNURU PEAR IRUKKU{
+                            EN PEAR MANICKAM ix%5==0{
+                                DOT "Buzz";
+                            } ENAKKU INNURU PEAR IRUKKU{
+                                DOT ix;
+                            }KATHAM KATHAM;
+                        }KATHAM KATHAM;
+                    }KATHAM KATHAM;
+                    ix BHAJJI SAAPDU ix+1;
+                }KATHAM KATHAM;
             MAGIZHCHI
         "#;
 

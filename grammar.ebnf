@@ -30,8 +30,8 @@ statement
     | FUNC_CALL func_name SEMI_COLON
     | FUNC_RETURN expression SEMI_COLON
     | START_DECLARE variable DECLARE expression SEMI_COLON
-    | IF_COND logical_expression L_BRACE statements R_BRACE
-    | FOR_START forvar FOR_RANGE_START forvar FOR_RANGE_END
+    | IF_COND logical_expression L_BRACE statements R_BRACE ELSE_COND L_BRACE statements R_BRACE END_BLOCK SEMI_COLON
+    | FOR_START forvar FOR_RANGE_START forvar FOR_RANGE_END L_BRACE statements R_BRACE END_BLOCK SEMI_COLON"
     | START_DECLARE variable DECLARE_ALT expression SEMI_COLON
     | WHILE_LOOP expression L_BRACE statements R_BRACE END_BLOCK SEMI_COLON
     | IF_COND logical_expression L_BRACE statements R_BRACE END_BLOCK SEMI_COLON
