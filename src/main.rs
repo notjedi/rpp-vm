@@ -28,6 +28,9 @@ fn main() -> Result<()> {
                     }KATHAM KATHAM;
                 }KATHAM KATHAM;
             MARAKKADHINGA
+
+            LAKSHMI START
+            MAGIZHCHI
         "#;
 
     let tokens = Lexer::tokenize_str(program).unwrap();

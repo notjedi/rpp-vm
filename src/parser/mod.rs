@@ -106,19 +106,6 @@ pub(crate) enum ExprLeaf {
 }
 
 impl ExprLeaf {
-    fn from_token(token: Token) -> Option<Self> {
-        let leaf = match token {
-            Token::Literal(Literal::Float(num)) => Self::Float(num),
-            Token::Literal(Literal::Int(num)) => Self::Int(num),
-            Token::Literal(Literal::BoolTrue) => Self::BoolTrue,
-            Token::Literal(Literal::BoolFalse) => Self::BoolFalse,
-            Token::Literal(Literal::Str(str)) => Self::Str(str),
-            Token::Literal(Literal::Char(ch)) => Self::Char(ch),
-            _ => return None,
-        };
-        Some(leaf)
-    }
-
     fn from_literal(literal: Literal) -> Self {
         match literal {
             Literal::Char(ch) => Self::Char(ch),
@@ -210,7 +197,7 @@ impl Parser {
             functions.push(func);
         }
         // TODO: should every program contain a main block? should it be optional?
-        self.expect(Token::KeyWord(KeyWord::ProgramStart));
+        self.expect(Token::KeyWord(KeyWord::ProgramStart))?;
         let mut main_stmts = Vec::new();
         while self.peek() != Some(&Token::KeyWord(KeyWord::ProgramEnd)) {
             let stmt = self.parse_statement()?;
