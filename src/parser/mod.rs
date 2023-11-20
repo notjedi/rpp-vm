@@ -209,10 +209,18 @@ impl Parser {
             let func = self.parse_function()?;
             functions.push(func);
         }
-        // TODO: parse main function
+        // TODO: should every program contain a main block? should it be optional?
+        self.expect(Token::KeyWord(KeyWord::ProgramStart));
+        let mut main_stmts = Vec::new();
+        while self.peek() != Some(&Token::KeyWord(KeyWord::ProgramEnd)) {
+            let stmt = self.parse_statement()?;
+            main_stmts.push(stmt);
+        }
+        self.consume();
+        // TODO: should i assert EOF?
         Ok(Program {
             functions,
-            main_stmts: vec![],
+            main_stmts,
         })
     }
 
@@ -428,35 +436,12 @@ impl Parser {
                     child: Box::new(self.parse_expression()?),
                 }
             }
-            // TODO: cleanup Token::Literal(literal) and Token::Ident(ident)
-            Token::Literal(literal) => {
-                let lhs = Expr::ExprLeaf(ExprLeaf::from_literal(literal));
-                if let Some(tok) = self.peek()
-                    && let Some(bin_op) = BinaryOp::from_token(tok)
-                {
-                    self.consume();
-                    let rhs = self.parse_expression()?;
-                    Expr::BinaryExpr {
-                        op: bin_op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }
-                } else if let Some(tok) = self.peek()
-                    && let Some(log_op) = LogicalOp::from_token(tok)
-                {
-                    self.consume();
-                    let rhs = self.parse_expression()?;
-                    Expr::LogicalExpr {
-                        op: log_op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }
-                } else {
-                    lhs
-                }
-            }
-            Token::Ident(ident) => {
-                let lhs = Expr::Ident(ident);
+            tok @ Token::Literal(_) | tok @ Token::Ident(_) => {
+                let lhs = match tok {
+                    Token::Literal(literal) => Expr::ExprLeaf(ExprLeaf::from_literal(literal)),
+                    Token::Ident(ident) => Expr::Ident(ident),
+                    _ => unreachable!(),
+                };
                 if let Some(tok) = self.peek()
                     && let Some(bin_op) = BinaryOp::from_token(tok)
                 {
@@ -518,13 +503,17 @@ mod tests {
                     }KATHAM KATHAM;
                 }KATHAM KATHAM;
             MARAKKADHINGA
+
+            LAKSHMI START
+            MAGIZHCHI
         "#;
 
         let tokens = Lexer::tokenize_str(program).unwrap();
         let mut parser = Parser::new(tokens);
         let ast = parser.parse().unwrap();
-        // assert!(false);
         dbg!(ast.functions);
+        dbg!(ast.main_stmts);
+        // assert!(false);
         Ok(())
     }
 }

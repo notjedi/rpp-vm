@@ -5,10 +5,11 @@
 
 mod lexer;
 mod parser;
-use color_eyre::eyre::Result;
-use lexer::Lexer;
 
+use crate::lexer::Lexer;
 use crate::parser::Parser;
+
+use color_eyre::eyre::Result;
 
 fn main() -> Result<()> {
     color_eyre::install()?;
