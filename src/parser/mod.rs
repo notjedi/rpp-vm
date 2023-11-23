@@ -14,6 +14,8 @@ pub(crate) enum ParseError {
     MissingExpectedToken { expected: Token, found: Token },
     #[error("unexpected token: {0:?}")]
     UnexpectedToken(Token),
+    #[error("invalid expr: {0:?}")]
+    InvalidExpr(Expr),
 }
 
 #[derive(Debug)]
@@ -182,19 +184,23 @@ impl Parser {
             self.consume();
             return Ok(());
         }
-        Err(ParseError::MissingExpectedToken {
-            expected: token,
-            found: self.peek().unwrap_or_default().clone(),
-        })
+        Err(Self::missing_expected_token(
+            token,
+            self.peek().unwrap_or_default().clone(),
+        ))
+    }
+
+    fn missing_expected_token(expected: Token, found: Token) -> ParseError {
+        ParseError::MissingExpectedToken { expected, found }
     }
 
     fn expect_ident(&mut self) -> Result<String, ParseError> {
         match self.consume() {
             Some(Token::Ident(ident)) => Ok(ident),
-            token => Err(ParseError::MissingExpectedToken {
-                expected: Token::Ident("".to_string()),
-                found: token.unwrap_or_default(),
-            }),
+            token => Err(Self::missing_expected_token(
+                Token::Ident("".to_string()),
+                token.unwrap_or_default(),
+            )),
         }
     }
 
@@ -204,14 +210,16 @@ impl Parser {
             let func = self.parse_function()?;
             functions.push(func);
         }
-        // TODO: should every program contain a main block? should it be optional?
-        self.expect(Token::KeyWord(KeyWord::ProgramStart))?;
         let mut main_stmts = Vec::new();
-        while self.peek() != Some(&Token::KeyWord(KeyWord::ProgramEnd)) {
-            let stmt = self.parse_statement()?;
-            main_stmts.push(stmt);
+        // main block is optional
+        if self.peek() == Some(&Token::KeyWord(KeyWord::ProgramStart)) {
+            self.consume();
+            while self.peek() != Some(&Token::KeyWord(KeyWord::ProgramEnd)) {
+                let stmt = self.parse_statement()?;
+                main_stmts.push(stmt);
+            }
+            self.consume();
         }
-        self.consume();
         // TODO: should i assert EOF?
         Ok(Program {
             functions,
@@ -225,10 +233,10 @@ impl Parser {
         let func_name = match self.consume() {
             Some(Token::Ident(func_name)) => func_name,
             token => {
-                return Err(ParseError::MissingExpectedToken {
-                    expected: Token::Ident("func_name".to_string()),
-                    found: token.unwrap_or_default(),
-                })
+                return Err(Self::missing_expected_token(
+                    Token::Ident("func_name".to_string()),
+                    token.unwrap_or_default(),
+                ));
             }
         };
         let mut statements = Vec::new();
@@ -302,14 +310,17 @@ impl Parser {
             Token::KeyWord(KeyWord::IfCond) => {
                 // IF_COND logical_expression L_BRACE statements R_BRACE END_BLOCK SEMI_COLON
                 // IF_COND logical_expression L_BRACE statements R_BRACE ELSE_COND L_BRACE statements R_BRACE END_BLOCK SEMI_COLON
-                // TODO: make sure expr is a logical expression
                 self.consume();
                 let expr = self.parse_expression()?;
+                // TODO: uncomment this after parsing the expression correctly
+                // if let Expr::LogicalExpr { .. } = &expr {
+                // } else {
+                //     return Err(ParseError::InvalidExpr(expr));
+                // }
                 self.expect(Token::KeyWord(KeyWord::LeftBrace))?;
                 let mut statements = Vec::new();
                 let mut else_statements = Vec::new();
 
-                // TODO: handle eof cases, where self.peek() == None
                 while let Some(token) = self.peek()
                     && token != &Token::KeyWord(KeyWord::RightBrace)
                 {
@@ -335,10 +346,10 @@ impl Parser {
                         self.expect(Token::KeyWord(KeyWord::SemiColon))?;
                     }
                     tok => {
-                        return Err(ParseError::MissingExpectedToken {
-                            expected: Token::KeyWord(KeyWord::EndBlock),
-                            found: tok.unwrap_or_default(),
-                        });
+                        return Err(Self::missing_expected_token(
+                            Token::KeyWord(KeyWord::EndBlock),
+                            tok.unwrap_or_default(),
+                        ));
                     }
                 }
                 StmtKind::IfCond {
@@ -356,10 +367,10 @@ impl Parser {
                     Token::Literal(Literal::Int(num)) => ForVar::Int(num),
                     Token::Literal(Literal::Float(num)) => ForVar::Float(num),
                     tok => {
-                        return Err(ParseError::MissingExpectedToken {
-                            expected: Token::KeyWord(KeyWord::Assign),
-                            found: tok,
-                        });
+                        return Err(Self::missing_expected_token(
+                            Token::KeyWord(KeyWord::Assign),
+                            tok,
+                        ));
                     }
                 };
                 self.expect(Token::KeyWord(KeyWord::ForRangeStart))?;
@@ -368,16 +379,15 @@ impl Parser {
                     Token::Literal(Literal::Int(num)) => ForVar::Int(num),
                     Token::Literal(Literal::Float(num)) => ForVar::Float(num),
                     tok => {
-                        return Err(ParseError::MissingExpectedToken {
-                            expected: Token::KeyWord(KeyWord::Assign),
-                            found: tok,
-                        });
+                        return Err(Self::missing_expected_token(
+                            Token::KeyWord(KeyWord::Assign),
+                            tok,
+                        ));
                     }
                 };
                 self.expect(Token::KeyWord(KeyWord::ForRangeEnd))?;
                 self.expect(Token::KeyWord(KeyWord::LeftBrace))?;
                 let mut statements = Vec::new();
-                // TODO: handle eof cases, where self.peek() == None
                 while let Some(token) = self.peek()
                     && token != &Token::KeyWord(KeyWord::RightBrace)
                 {
@@ -399,7 +409,6 @@ impl Parser {
                 let expr = self.parse_expression()?;
                 self.expect(Token::KeyWord(KeyWord::LeftBrace))?;
                 let mut statements = Vec::new();
-                // TODO: handle eof cases, where self.peek() == None
                 while let Some(token) = self.peek()
                     && token != &Token::KeyWord(KeyWord::RightBrace)
                 {
@@ -438,18 +447,17 @@ impl Parser {
                                 rhs: Box::new(func_name),
                             }
                         } else {
-                            // TODO: create a function to do this, i'm kinda doing this frequently
-                            return Err(ParseError::MissingExpectedToken {
-                                expected: Token::KeyWord(KeyWord::Assign),
-                                found: next_tok,
-                            });
+                            return Err(Self::missing_expected_token(
+                                Token::KeyWord(KeyWord::Assign),
+                                next_tok,
+                            ));
                         }
                     }
                     peek_tok => {
-                        return Err(ParseError::MissingExpectedToken {
-                            expected: Token::KeyWord(KeyWord::Assign),
-                            found: peek_tok,
-                        })
+                        return Err(Self::missing_expected_token(
+                            Token::KeyWord(KeyWord::Assign),
+                            peek_tok,
+                        ));
                     }
                 }
             }
@@ -464,9 +472,11 @@ impl Parser {
     }
 
     fn parse_expression(&mut self) -> Result<Expr, ParseError> {
+        // TODO: fails on `ix%15==0`
+        // should be lhs: BinaryExpr op: LogicalOp rhs: 0
+        // but it comes out to be, lhs: ix op: mod rhs: {lhs: 15 op: LogicalOp rhs: 0}
         let expr = match self.consume().unwrap_or_default() {
             op @ Token::KeyWord(KeyWord::Sub) | op @ Token::KeyWord(KeyWord::Sum) => {
-                // TODO: check if this impl is correct
                 let op = BinaryOp::from_token(&op).unwrap();
                 Expr::UnaryExpr {
                     op,
