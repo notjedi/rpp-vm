@@ -3,6 +3,11 @@ use crate::lexer::{KeyWord, Literal, Token};
 use std::{iter::Peekable, vec::IntoIter};
 use thiserror::Error;
 
+type BoxExpr = Box<Expr>;
+type BoxStr = Box<String>;
+type BoxForVar = Box<ForVar>;
+type BoxVecStmtKind = Box<Vec<StmtKind>>;
+
 #[derive(Debug, Error)]
 pub(crate) enum ParseError {
     #[error("expected: {expected:?}, found: {found:?}")]
@@ -15,7 +20,7 @@ pub(crate) enum ParseError {
 pub(crate) enum ForVar {
     Int(i64),
     Float(f64),
-    Ident(String),
+    Ident(BoxStr),
 }
 
 #[derive(Debug)]
@@ -27,26 +32,26 @@ pub(crate) enum StmtKind {
     FuncCall(String),
     FuncReturn(Expr),
     Assign {
-        lhs: String,
-        rhs: Expr,
+        lhs: BoxStr,
+        rhs: BoxExpr,
     },
     AssignFuncCall {
-        lhs: String,
-        rhs: String,
+        lhs: BoxStr,
+        rhs: BoxStr,
     },
     IfCond {
-        condition: Expr,
-        body: Vec<StmtKind>,
-        else_body: Vec<StmtKind>,
+        condition: BoxExpr,
+        body: BoxVecStmtKind,
+        else_body: BoxVecStmtKind,
     },
     ForLoop {
-        start: ForVar,
-        end: ForVar,
-        body: Vec<StmtKind>,
+        start: BoxForVar,
+        end: BoxForVar,
+        body: BoxVecStmtKind,
     },
     WhileLoop {
-        condition: Expr,
-        body: Vec<StmtKind>,
+        condition: BoxExpr,
+        body: BoxVecStmtKind,
     },
 }
 
@@ -105,14 +110,14 @@ pub(crate) enum ExprLeaf {
     Int(i64),
     Float(f64),
     Char(char),
-    Str(String),
+    Str(BoxStr),
 }
 
 impl ExprLeaf {
     fn from_literal(literal: Literal) -> Self {
         match literal {
             Literal::Char(ch) => Self::Char(ch),
-            Literal::Str(string) => Self::Str(string),
+            Literal::Str(string) => Self::Str(Box::new(string)),
             Literal::Int(num) => Self::Int(num),
             Literal::Float(num) => Self::Float(num),
             Literal::BoolTrue => Self::BoolTrue,
@@ -138,19 +143,19 @@ pub(crate) enum Expr {
         child: Box<Expr>,
     },
     ExprLeaf(ExprLeaf),
-    Ident(String),
+    Ident(BoxStr),
 }
 
 #[derive(Debug)]
 pub(crate) struct Function {
-    name: String,
-    body: Vec<StmtKind>,
+    name: BoxStr,
+    body: BoxVecStmtKind,
 }
 
 #[derive(Debug)]
 pub(crate) struct Program {
     pub(crate) functions: Vec<Function>,
-    pub(crate) main_stmts: Vec<StmtKind>,
+    pub(crate) main_stmts: BoxVecStmtKind,
 }
 
 pub(crate) struct Parser {
@@ -210,7 +215,7 @@ impl Parser {
         // TODO: should i assert EOF?
         Ok(Program {
             functions,
-            main_stmts,
+            main_stmts: Box::new(main_stmts),
         })
     }
 
@@ -235,8 +240,8 @@ impl Parser {
         }
         self.expect(Token::KeyWord(KeyWord::EndFunc))?;
         Ok(Function {
-            name: func_name,
-            body: statements,
+            name: Box::new(func_name),
+            body: Box::new(statements),
         })
     }
 
@@ -290,8 +295,8 @@ impl Parser {
                 let expr = self.parse_expression()?;
                 self.expect(Token::KeyWord(KeyWord::SemiColon))?;
                 StmtKind::Assign {
-                    lhs: var,
-                    rhs: expr,
+                    lhs: Box::new(var),
+                    rhs: Box::new(expr),
                 }
             }
             Token::KeyWord(KeyWord::IfCond) => {
@@ -337,9 +342,9 @@ impl Parser {
                     }
                 }
                 StmtKind::IfCond {
-                    condition: expr,
-                    body: statements,
-                    else_body: else_statements,
+                    condition: Box::new(expr),
+                    body: Box::new(statements),
+                    else_body: Box::new(else_statements),
                 }
             }
             Token::KeyWord(KeyWord::ForStart) => {
@@ -347,7 +352,7 @@ impl Parser {
                 // forvar := NUMBER | WORD
                 self.consume();
                 let for_start = match self.consume().unwrap_or_default() {
-                    Token::Ident(ident) => ForVar::Ident(ident),
+                    Token::Ident(ident) => ForVar::Ident(Box::new(ident)),
                     Token::Literal(Literal::Int(num)) => ForVar::Int(num),
                     Token::Literal(Literal::Float(num)) => ForVar::Float(num),
                     tok => {
@@ -359,7 +364,7 @@ impl Parser {
                 };
                 self.expect(Token::KeyWord(KeyWord::ForRangeStart))?;
                 let for_end = match self.consume().unwrap_or_default() {
-                    Token::Ident(ident) => ForVar::Ident(ident),
+                    Token::Ident(ident) => ForVar::Ident(Box::new(ident)),
                     Token::Literal(Literal::Int(num)) => ForVar::Int(num),
                     Token::Literal(Literal::Float(num)) => ForVar::Float(num),
                     tok => {
@@ -383,9 +388,9 @@ impl Parser {
                 self.expect(Token::KeyWord(KeyWord::EndBlock))?;
                 self.expect(Token::KeyWord(KeyWord::SemiColon))?;
                 StmtKind::ForLoop {
-                    start: for_start,
-                    end: for_end,
-                    body: statements,
+                    start: Box::new(for_start),
+                    end: Box::new(for_end),
+                    body: Box::new(statements),
                 }
             }
             Token::KeyWord(KeyWord::WhileLoop) => {
@@ -405,8 +410,8 @@ impl Parser {
                 self.expect(Token::KeyWord(KeyWord::EndBlock))?;
                 self.expect(Token::KeyWord(KeyWord::SemiColon))?;
                 StmtKind::WhileLoop {
-                    condition: expr,
-                    body: statements,
+                    condition: Box::new(expr),
+                    body: Box::new(statements),
                 }
             }
             Token::Ident(_) => {
@@ -420,8 +425,8 @@ impl Parser {
                         let expr = self.parse_expression()?;
                         self.expect(Token::KeyWord(KeyWord::SemiColon))?;
                         StmtKind::Assign {
-                            lhs: ident,
-                            rhs: expr,
+                            lhs: Box::new(ident),
+                            rhs: Box::new(expr),
                         }
                     }
                     Token::KeyWord(KeyWord::FuncCall) => {
@@ -429,8 +434,8 @@ impl Parser {
                         if let Token::Ident(func_name) = next_tok {
                             self.expect(Token::KeyWord(KeyWord::SemiColon))?;
                             StmtKind::AssignFuncCall {
-                                lhs: ident,
-                                rhs: func_name,
+                                lhs: Box::new(ident),
+                                rhs: Box::new(func_name),
                             }
                         } else {
                             // TODO: create a function to do this, i'm kinda doing this frequently
@@ -471,7 +476,7 @@ impl Parser {
             tok @ Token::Literal(_) | tok @ Token::Ident(_) => {
                 let lhs = match tok {
                     Token::Literal(literal) => Expr::ExprLeaf(ExprLeaf::from_literal(literal)),
-                    Token::Ident(ident) => Expr::Ident(ident),
+                    Token::Ident(ident) => Expr::Ident(Box::new(ident)),
                     _ => unreachable!(),
                 };
                 if let Some(tok) = self.peek()
