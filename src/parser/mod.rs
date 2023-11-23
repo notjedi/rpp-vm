@@ -171,6 +171,31 @@ impl Parser {
         }
     }
 
+    fn missing_expected_token(expected: Token, found: Token) -> ParseError {
+        ParseError::MissingExpectedToken { expected, found }
+    }
+
+    fn count_logical(expr: &Expr) -> u32 {
+        let mut count = 0;
+        match expr {
+            Expr::LogicalExpr {
+                ref lhs, ref rhs, ..
+            } => {
+                count = count + Self::count_logical(lhs);
+                count = count + Self::count_logical(rhs);
+                count + 1
+            }
+            Expr::BinaryExpr {
+                ref lhs, ref rhs, ..
+            } => {
+                count = count + Self::count_logical(lhs);
+                count = count + Self::count_logical(rhs);
+                count
+            }
+            _ => count,
+        }
+    }
+
     fn peek(&mut self) -> Option<&Token> {
         self.tokens.peek()
     }
@@ -188,10 +213,6 @@ impl Parser {
             token,
             self.peek().unwrap_or_default().clone(),
         ))
-    }
-
-    fn missing_expected_token(expected: Token, found: Token) -> ParseError {
-        ParseError::MissingExpectedToken { expected, found }
     }
 
     fn expect_ident(&mut self) -> Result<String, ParseError> {
@@ -312,11 +333,14 @@ impl Parser {
                 // IF_COND logical_expression L_BRACE statements R_BRACE ELSE_COND L_BRACE statements R_BRACE END_BLOCK SEMI_COLON
                 self.consume();
                 let expr = self.parse_expression()?;
-                // TODO: uncomment this after parsing the expression correctly
-                // if let Expr::LogicalExpr { .. } = &expr {
-                // } else {
-                //     return Err(ParseError::InvalidExpr(expr));
-                // }
+                if Self::count_logical(&expr) != 1
+                    && !matches!(
+                        expr,
+                        Expr::ExprLeaf(ExprLeaf::BoolTrue) | Expr::ExprLeaf(ExprLeaf::BoolFalse)
+                    )
+                {
+                    return Err(ParseError::InvalidExpr(expr));
+                }
                 self.expect(Token::KeyWord(KeyWord::LeftBrace))?;
                 let mut statements = Vec::new();
                 let mut else_statements = Vec::new();
@@ -407,6 +431,14 @@ impl Parser {
                 // WHILE_LOOP expression L_BRACE statements R_BRACE END_BLOCK SEMI_COLON
                 self.consume();
                 let expr = self.parse_expression()?;
+                if Self::count_logical(&expr) != 1
+                    && !matches!(
+                        expr,
+                        Expr::ExprLeaf(ExprLeaf::BoolTrue) | Expr::ExprLeaf(ExprLeaf::BoolFalse)
+                    )
+                {
+                    return Err(ParseError::InvalidExpr(expr));
+                }
                 self.expect(Token::KeyWord(KeyWord::LeftBrace))?;
                 let mut statements = Vec::new();
                 while let Some(token) = self.peek()
@@ -475,6 +507,8 @@ impl Parser {
         // TODO: fails on `ix%15==0`
         // should be lhs: BinaryExpr op: LogicalOp rhs: 0
         // but it comes out to be, lhs: ix op: mod rhs: {lhs: 15 op: LogicalOp rhs: 0}
+        // TODO: there should be a better way of parsing this. i want the logical expr to
+        // be in the top level by default
         let expr = match self.consume().unwrap_or_default() {
             op @ Token::KeyWord(KeyWord::Sub) | op @ Token::KeyWord(KeyWord::Sum) => {
                 let op = BinaryOp::from_token(&op).unwrap();
