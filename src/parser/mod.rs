@@ -129,6 +129,12 @@ impl ExprLeaf {
 }
 
 #[derive(Debug)]
+pub(crate) enum Op {
+    BinaryOp(BinaryOp),
+    LogicalOp(LogicalOp),
+}
+
+#[derive(Debug)]
 pub(crate) enum Expr {
     BinaryExpr {
         op: BinaryOp,
@@ -175,24 +181,23 @@ impl Parser {
         ParseError::MissingExpectedToken { expected, found }
     }
 
-    fn count_logical(expr: &Expr) -> u32 {
-        let mut count = 0;
-        match expr {
-            Expr::LogicalExpr {
-                ref lhs, ref rhs, ..
-            } => {
-                count = count + Self::count_logical(lhs);
-                count = count + Self::count_logical(rhs);
-                count + 1
-            }
-            Expr::BinaryExpr {
-                ref lhs, ref rhs, ..
-            } => {
-                count = count + Self::count_logical(lhs);
-                count = count + Self::count_logical(rhs);
-                count
-            }
-            _ => count,
+    fn get_binding_power(tok: &Op) -> u32 {
+        // https://stackoverflow.com/questions/3114107/modulo-in-order-of-operation
+        // https://en.wikipedia.org/wiki/Order_of_operations#Programming_languages
+        // https://i.stack.imgur.com/foy5H.png
+        match tok {
+            Op::LogicalOp(log_op) => match log_op {
+                LogicalOp::Equal | LogicalOp::NotEqual => 1,
+                LogicalOp::LessThan
+                | LogicalOp::LessThanEqual
+                | LogicalOp::GreaterThan
+                | LogicalOp::GreaterThanEqual => 3,
+            },
+            Op::BinaryOp(bin_op) => match bin_op {
+                BinaryOp::Add | BinaryOp::Sub => 5,
+                BinaryOp::Mul | BinaryOp::Div | BinaryOp::Mod => 7,
+            },
+            _ => unreachable!(),
         }
     }
 
@@ -294,7 +299,7 @@ impl Parser {
                 self.consume();
                 let mut exprs = Vec::new();
                 while Some(&Token::KeyWord(KeyWord::SemiColon)) != self.peek() {
-                    let expr = self.parse_expression()?;
+                    let expr = self.parse_expression(0)?;
                     exprs.push(expr);
                 }
                 self.consume();
@@ -310,7 +315,7 @@ impl Parser {
             Token::KeyWord(KeyWord::FuncReturn) => {
                 // FUNC_RETURN expression SEMI_COLON
                 self.consume();
-                let expr = self.parse_expression()?;
+                let expr = self.parse_expression(0)?;
                 self.expect(Token::KeyWord(KeyWord::SemiColon))?;
                 StmtKind::FuncReturn(expr)
             }
@@ -321,7 +326,7 @@ impl Parser {
                 let var = self.expect_ident()?;
                 self.expect(Token::KeyWord(KeyWord::Declare))
                     .or_else(|_| self.expect(Token::KeyWord(KeyWord::DeclareAlt)))?;
-                let expr = self.parse_expression()?;
+                let expr = self.parse_expression(0)?;
                 self.expect(Token::KeyWord(KeyWord::SemiColon))?;
                 StmtKind::Assign {
                     lhs: Box::new(var),
@@ -332,14 +337,12 @@ impl Parser {
                 // IF_COND logical_expression L_BRACE statements R_BRACE END_BLOCK SEMI_COLON
                 // IF_COND logical_expression L_BRACE statements R_BRACE ELSE_COND L_BRACE statements R_BRACE END_BLOCK SEMI_COLON
                 self.consume();
-                let expr = self.parse_expression()?;
-                if Self::count_logical(&expr) != 1
-                    && !matches!(
-                        expr,
-                        Expr::ExprLeaf(ExprLeaf::BoolTrue) | Expr::ExprLeaf(ExprLeaf::BoolFalse)
-                    )
-                {
-                    return Err(ParseError::InvalidExpr(expr));
+                let expr = self.parse_expression(0)?;
+                match expr {
+                    Expr::LogicalExpr { .. }
+                    | Expr::ExprLeaf(ExprLeaf::BoolTrue)
+                    | Expr::ExprLeaf(ExprLeaf::BoolFalse) => {}
+                    _ => return Err(ParseError::InvalidExpr(expr)),
                 }
                 self.expect(Token::KeyWord(KeyWord::LeftBrace))?;
                 let mut statements = Vec::new();
@@ -430,14 +433,12 @@ impl Parser {
             Token::KeyWord(KeyWord::WhileLoop) => {
                 // WHILE_LOOP expression L_BRACE statements R_BRACE END_BLOCK SEMI_COLON
                 self.consume();
-                let expr = self.parse_expression()?;
-                if Self::count_logical(&expr) != 1
-                    && !matches!(
-                        expr,
-                        Expr::ExprLeaf(ExprLeaf::BoolTrue) | Expr::ExprLeaf(ExprLeaf::BoolFalse)
-                    )
-                {
-                    return Err(ParseError::InvalidExpr(expr));
+                let expr = self.parse_expression(0)?;
+                match expr {
+                    Expr::LogicalExpr { .. }
+                    | Expr::ExprLeaf(ExprLeaf::BoolTrue)
+                    | Expr::ExprLeaf(ExprLeaf::BoolFalse) => {}
+                    _ => return Err(ParseError::InvalidExpr(expr)),
                 }
                 self.expect(Token::KeyWord(KeyWord::LeftBrace))?;
                 let mut statements = Vec::new();
@@ -463,7 +464,7 @@ impl Parser {
                 };
                 match self.consume().unwrap_or_default() {
                     Token::KeyWord(KeyWord::Assign) => {
-                        let expr = self.parse_expression()?;
+                        let expr = self.parse_expression(0)?;
                         self.expect(Token::KeyWord(KeyWord::SemiColon))?;
                         StmtKind::Assign {
                             lhs: Box::new(ident),
@@ -495,7 +496,7 @@ impl Parser {
             }
             _ => {
                 // expression SEMI_COLON
-                let expr = self.parse_expression()?;
+                let expr = self.parse_expression(0)?;
                 self.expect(Token::KeyWord(KeyWord::SemiColon))?;
                 StmtKind::Expr(expr)
             }
@@ -503,53 +504,63 @@ impl Parser {
         Ok(stmtkind)
     }
 
-    fn parse_expression(&mut self) -> Result<Expr, ParseError> {
-        // TODO: fails on `ix%15==0`
-        // should be lhs: BinaryExpr op: LogicalOp rhs: 0
-        // but it comes out to be, lhs: ix op: mod rhs: {lhs: 15 op: LogicalOp rhs: 0}
-        // TODO: there should be a better way of parsing this. i want the logical expr to
-        // be in the top level by default
-        let expr = match self.consume().unwrap_or_default() {
+    fn parse_expression(&mut self, precedence_limit: u32) -> Result<Expr, ParseError> {
+        // Pratt parsing
+        // https://martin.janiczek.cz/2023/07/03/demystifying-pratt-parsers.html
+        // https://journal.stuffwithstuff.com/2011/03/19/pratt-parsers-expression-parsing-made-easy
+        let mut lhs = match self.consume().unwrap_or_default() {
+            Token::Literal(literal) => Expr::ExprLeaf(ExprLeaf::from_literal(literal)),
+            Token::Ident(ident) => Expr::Ident(Box::new(ident)),
             op @ Token::KeyWord(KeyWord::Sub) | op @ Token::KeyWord(KeyWord::Sum) => {
                 let op = BinaryOp::from_token(&op).unwrap();
                 Expr::UnaryExpr {
                     op,
-                    child: Box::new(self.parse_expression()?),
+                    child: Box::new(self.parse_expression(0)?),
                 }
             }
-            tok @ Token::Literal(_) | tok @ Token::Ident(_) => {
-                let lhs = match tok {
-                    Token::Literal(literal) => Expr::ExprLeaf(ExprLeaf::from_literal(literal)),
-                    Token::Ident(ident) => Expr::Ident(Box::new(ident)),
-                    _ => unreachable!(),
-                };
-                if let Some(tok) = self.peek()
-                    && let Some(bin_op) = BinaryOp::from_token(tok)
-                {
-                    self.consume();
-                    let rhs = self.parse_expression()?;
-                    Expr::BinaryExpr {
+            tok => return Err(ParseError::UnexpectedToken(tok)),
+        };
+
+        loop {
+            let op = match self.peek() {
+                Some(op @ Token::KeyWord(_)) => {
+                    if let Some(bin_op) = BinaryOp::from_token(&op) {
+                        Op::BinaryOp(bin_op)
+                    } else if let Some(log_op) = LogicalOp::from_token(&op) {
+                        Op::LogicalOp(log_op)
+                    } else {
+                        break;
+                    }
+                }
+                _ => break,
+            };
+
+            let precedence = Self::get_binding_power(&op);
+            if precedence <= precedence_limit {
+                break;
+            }
+            self.consume();
+
+            let rhs = self.parse_expression(precedence)?;
+            let lhs = match op {
+                Op::BinaryOp(bin_op) => {
+                    lhs = Expr::BinaryExpr {
                         op: bin_op,
                         lhs: Box::new(lhs),
                         rhs: Box::new(rhs),
                     }
-                } else if let Some(tok) = self.peek()
-                    && let Some(log_op) = LogicalOp::from_token(tok)
-                {
-                    self.consume();
-                    let rhs = self.parse_expression()?;
-                    Expr::LogicalExpr {
+                }
+                Op::LogicalOp(log_op) => {
+                    lhs = Expr::LogicalExpr {
                         op: log_op,
                         lhs: Box::new(lhs),
                         rhs: Box::new(rhs),
                     }
-                } else {
-                    lhs
                 }
-            }
-            token => return Err(ParseError::UnexpectedToken(token)),
-        };
-        Ok(expr)
+            };
+        }
+
+        Ok(lhs)
     }
 }
 
