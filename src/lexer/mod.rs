@@ -1,7 +1,7 @@
 mod tokens;
 pub(crate) use tokens::{KeyWord, Literal, Span, Token, TokenKind};
 
-use std::{i64, iter::Peekable, str::Chars};
+use std::{collections::VecDeque, i64, iter::Peekable, str::Chars};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -360,180 +360,49 @@ impl<'a> Lexer<'a> {
         };
         Ok(token)
     }
+
+    // https://github.com/tjdevries/vim9jit/blob/9a530e1f0f346f86784eef8ff7026849b1b9ed64/crates/vim9-lexer/src/lib.rs#L1039
+    pub(crate) fn snapshot_lexing(input: &'a str) -> Result<String, LexError> {
+        let mut lexer = Self::new(input);
+        let tokens = lexer.tokensize()?;
+        let mut tokens = VecDeque::from(tokens);
+
+        let mut output = String::new();
+        for (row, line) in input.lines().enumerate() {
+            output += line;
+            output += "\n";
+
+            while let Some(tok) = tokens.pop_front() {
+                if tok.span.row != row {
+                    tokens.push_front(tok);
+                    break;
+                }
+
+                output += &" ".repeat(tok.span.col);
+                output += &"^".repeat(tok.span.length);
+                output += &format!(" {tok:?}");
+                output += "\n"
+            }
+        }
+        Ok(output)
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{KeyWord::*, Lexer, Literal::*, TokenKind::*};
+
+    use super::{LexError, Lexer};
 
     #[test]
-    fn test_fizz_buzz() {
+    fn test_fizz_buzz() -> Result<(), LexError> {
         let program = include_str!("../../testdata/snapshots/test.rpp");
+        let snapshot_string = Lexer::snapshot_lexing(program)?;
 
-        // let tokens = vec![
-        //     KeyWord(FuncDeclare),
-        //     Ident("myfunc_one".to_string()),
-        //     KeyWord(StartDeclare),
-        //     Ident("ix".to_string()),
-        //     KeyWord(Declare),
-        //     Literal(Int(100)),
-        //     KeyWord(SemiColon),
-        //     KeyWord(Print),
-        //     Literal(Str("returning ix =".to_string())),
-        //     Ident("ix".to_string()),
-        //     Literal(Str("to main".to_string())),
-        //     KeyWord(SemiColon),
-        //     KeyWord(FuncReturn),
-        //     Ident("ix".to_string()),
-        //     KeyWord(SemiColon),
-        //     KeyWord(EndFunc),
-        //     KeyWord(ProgramStart),
-        //     Comment(" checking exprs".to_string()),
-        //     Literal(Int(25)),
-        //     KeyWord(Sum),
-        //     Literal(Int(15)),
-        //     KeyWord(SemiColon),
-        //     Literal(Int(25)),
-        //     KeyWord(Sub),
-        //     Literal(Int(15)),
-        //     KeyWord(SemiColon),
-        //     Literal(Float(5.5)),
-        //     KeyWord(Mul),
-        //     KeyWord(Sub),
-        //     Literal(Int(5)),
-        //     KeyWord(SemiColon),
-        //     Literal(Int(5)),
-        //     KeyWord(Div),
-        //     Literal(Int(5)),
-        //     KeyWord(SemiColon),
-        //     Literal(Int(51)),
-        //     KeyWord(Mod),
-        //     Literal(Int(5)),
-        //     KeyWord(SemiColon),
-        //     Comment(" testing while loop".to_string()),
-        //     KeyWord(WhileLoop),
-        //     Literal(BoolTrue),
-        //     KeyWord(LeftBrace),
-        //     KeyWord(Print),
-        //     Ident("ix".to_string()),
-        //     KeyWord(SemiColon),
-        //     Ident("ix".to_string()),
-        //     KeyWord(Assign),
-        //     Ident("ix".to_string()),
-        //     KeyWord(Sum),
-        //     Literal(Int(1)),
-        //     KeyWord(SemiColon),
-        //     KeyWord(IfCond),
-        //     Ident("ix".to_string()),
-        //     KeyWord(GreaterThanEqual),
-        //     Literal(Int(5)),
-        //     KeyWord(LeftBrace),
-        //     KeyWord(Print),
-        //     Literal(Str("breaking out of loop...".to_string())),
-        //     KeyWord(SemiColon),
-        //     KeyWord(BreakLoop),
-        //     KeyWord(SemiColon),
-        //     KeyWord(RightBrace),
-        //     KeyWord(EndBlock),
-        //     KeyWord(SemiColon),
-        //     KeyWord(RightBrace),
-        //     KeyWord(EndBlock),
-        //     KeyWord(SemiColon),
-        //     Ident("y".to_string()),
-        //     KeyWord(FuncCall),
-        //     Ident("myfunc_one".to_string()),
-        //     KeyWord(SemiColon),
-        //     KeyWord(StartDeclare),
-        //     Ident("ix".to_string()),
-        //     KeyWord(Declare),
-        //     Literal(Int(1)),
-        //     KeyWord(SemiColon),
-        //     KeyWord(StartDeclare),
-        //     Ident("range".to_string()),
-        //     KeyWord(Declare),
-        //     Literal(Int(16)),
-        //     KeyWord(SemiColon),
-        //     KeyWord(ForStart),
-        //     Literal(Int(1)),
-        //     KeyWord(ForRangeStart),
-        //     Ident("range".to_string()),
-        //     KeyWord(ForRangeEnd),
-        //     KeyWord(LeftBrace),
-        //     KeyWord(IfCond),
-        //     Ident("ix".to_string()),
-        //     KeyWord(Mod),
-        //     Literal(Int(15)),
-        //     KeyWord(Equal),
-        //     Literal(Int(0)),
-        //     KeyWord(LeftBrace),
-        //     KeyWord(Print),
-        //     Literal(Str("FizzBuzz".to_string())),
-        //     KeyWord(SemiColon),
-        //     KeyWord(RightBrace),
-        //     KeyWord(ElseCond),
-        //     KeyWord(LeftBrace),
-        //     KeyWord(IfCond),
-        //     Ident("ix".to_string()),
-        //     KeyWord(Mod),
-        //     Literal(Int(3)),
-        //     KeyWord(Equal),
-        //     Literal(Int(0)),
-        //     KeyWord(LeftBrace),
-        //     KeyWord(Print),
-        //     Literal(Str("Fizz".to_string())),
-        //     KeyWord(SemiColon),
-        //     KeyWord(RightBrace),
-        //     KeyWord(ElseCond),
-        //     KeyWord(LeftBrace),
-        //     KeyWord(IfCond),
-        //     Ident("ix".to_string()),
-        //     KeyWord(Mod),
-        //     Literal(Int(5)),
-        //     KeyWord(Equal),
-        //     Literal(Int(0)),
-        //     KeyWord(LeftBrace),
-        //     KeyWord(Print),
-        //     Literal(Str("Buzz".to_string())),
-        //     KeyWord(SemiColon),
-        //     KeyWord(RightBrace),
-        //     KeyWord(ElseCond),
-        //     KeyWord(LeftBrace),
-        //     KeyWord(Print),
-        //     Ident("ix".to_string()),
-        //     KeyWord(SemiColon),
-        //     KeyWord(RightBrace),
-        //     KeyWord(EndBlock),
-        //     KeyWord(SemiColon),
-        //     KeyWord(RightBrace),
-        //     KeyWord(EndBlock),
-        //     KeyWord(SemiColon),
-        //     KeyWord(RightBrace),
-        //     KeyWord(EndBlock),
-        //     KeyWord(SemiColon),
-        //     Ident("ix".to_string()),
-        //     KeyWord(Assign),
-        //     Ident("ix".to_string()),
-        //     KeyWord(Sum),
-        //     Literal(Int(1)),
-        //     KeyWord(SemiColon),
-        //     KeyWord(RightBrace),
-        //     KeyWord(EndBlock),
-        //     KeyWord(SemiColon),
-        //     KeyWord(ProgramEnd),
-        //     Eof,
-        // ];
-
-        let mut lexer = Lexer::new(program);
-        let res = lexer.tokensize();
-        dbg!(res);
-
-        // for (i, token) in tokens.into_iter().enumerate() {
-        //     let lex_token = lexer.advance_token().unwrap();
-        //     // assert_eq!(
-        //     //     token, lex_token,
-        //     //     "expected: {:?}, found: {:?} at pos: {}",
-        //     //     token, lex_token, i
-        //     // );
-        // }
+        let mut settings = insta::Settings::clone_current();
+        settings.set_snapshot_path("../../testdata/output/");
+        settings.bind(|| {
+            insta::assert_snapshot!(snapshot_string);
+        });
+        Ok(())
     }
 }

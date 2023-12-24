@@ -573,7 +573,7 @@ impl Parser {
 mod tests {
     use color_eyre::eyre::Result;
 
-    use crate::lexer::{Lexer, TokenKind};
+    use crate::lexer::Lexer;
 
     use super::Parser;
 
