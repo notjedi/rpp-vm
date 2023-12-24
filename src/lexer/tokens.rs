@@ -96,7 +96,7 @@ impl KeyWord {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) enum Token {
+pub(crate) enum TokenKind {
     Eof,
     Ident(String),
     Comment(String),
@@ -104,20 +104,33 @@ pub(crate) enum Token {
     Literal(Literal),
 }
 
-impl Default for Token {
+impl Default for TokenKind {
     fn default() -> Self {
         Self::Eof
     }
 }
 
-impl Default for &Token {
-    fn default() -> &'static Token {
-        &Token::Eof
+impl Default for &TokenKind {
+    fn default() -> &'static TokenKind {
+        &TokenKind::Eof
     }
 }
 
-impl From<KeyWord> for Token {
+impl From<KeyWord> for TokenKind {
     fn from(val: KeyWord) -> Self {
-        Token::KeyWord(val)
+        TokenKind::KeyWord(val)
     }
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct Span {
+    pub(crate) row: usize,
+    pub(crate) col: usize,
+    pub(crate) length: usize,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct Token {
+    pub(crate) kind: TokenKind,
+    pub(crate) span: Span,
 }

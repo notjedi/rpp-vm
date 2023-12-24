@@ -1,4 +1,4 @@
-use crate::lexer::{KeyWord, Literal, Token};
+use crate::lexer::{KeyWord, Literal, Token, TokenKind};
 
 use std::{iter::Peekable, vec::IntoIter};
 use thiserror::Error;
@@ -11,9 +11,12 @@ type BoxVecStmtKind = Box<Vec<StmtKind>>;
 #[derive(Debug, Error)]
 pub(crate) enum ParseError {
     #[error("expected: {expected:?}, found: {found:?}")]
-    MissingExpectedToken { expected: Token, found: Token },
+    MissingExpectedToken {
+        expected: TokenKind,
+        found: TokenKind,
+    },
     #[error("unexpected token: {0:?}")]
-    UnexpectedToken(Token),
+    UnexpectedToken(TokenKind),
     #[error("invalid expr: {0:?}")]
     InvalidExpr(Expr),
 }
@@ -70,13 +73,13 @@ pub(crate) enum BinaryOp {
 }
 
 impl BinaryOp {
-    fn from_token(token: &Token) -> Option<Self> {
+    fn from_token(token: &TokenKind) -> Option<Self> {
         let op = match token {
-            Token::KeyWord(KeyWord::Sum) => Self::Add,
-            Token::KeyWord(KeyWord::Sub) => Self::Sub,
-            Token::KeyWord(KeyWord::Mul) => Self::Mul,
-            Token::KeyWord(KeyWord::Div) => Self::Div,
-            Token::KeyWord(KeyWord::Mod) => Self::Mod,
+            TokenKind::KeyWord(KeyWord::Sum) => Self::Add,
+            TokenKind::KeyWord(KeyWord::Sub) => Self::Sub,
+            TokenKind::KeyWord(KeyWord::Mul) => Self::Mul,
+            TokenKind::KeyWord(KeyWord::Div) => Self::Div,
+            TokenKind::KeyWord(KeyWord::Mod) => Self::Mod,
             _ => return None,
         };
         Some(op)
@@ -94,14 +97,14 @@ pub(crate) enum LogicalOp {
 }
 
 impl LogicalOp {
-    fn from_token(token: &Token) -> Option<Self> {
+    fn from_token(token: &TokenKind) -> Option<Self> {
         let op = match token {
-            Token::KeyWord(KeyWord::GreaterThan) => Self::GreaterThan,
-            Token::KeyWord(KeyWord::LessThan) => Self::LessThan,
-            Token::KeyWord(KeyWord::GreaterThanEqual) => Self::GreaterThanEqual,
-            Token::KeyWord(KeyWord::LessThanEqual) => Self::LessThanEqual,
-            Token::KeyWord(KeyWord::Equal) => Self::Equal,
-            Token::KeyWord(KeyWord::NotEqual) => Self::NotEqual,
+            TokenKind::KeyWord(KeyWord::GreaterThan) => Self::GreaterThan,
+            TokenKind::KeyWord(KeyWord::LessThan) => Self::LessThan,
+            TokenKind::KeyWord(KeyWord::GreaterThanEqual) => Self::GreaterThanEqual,
+            TokenKind::KeyWord(KeyWord::LessThanEqual) => Self::LessThanEqual,
+            TokenKind::KeyWord(KeyWord::Equal) => Self::Equal,
+            TokenKind::KeyWord(KeyWord::NotEqual) => Self::NotEqual,
             _ => return None,
         };
         Some(op)
@@ -170,17 +173,21 @@ pub(crate) struct Program {
 }
 
 pub(crate) struct Parser {
-    tokens: Peekable<IntoIter<Token>>,
+    tokens: Peekable<IntoIter<TokenKind>>,
 }
 
 impl Parser {
     pub(crate) fn new(tokens: Vec<Token>) -> Self {
+        let tokens = tokens
+            .into_iter()
+            .map(|x| x.kind)
+            .collect::<Vec<TokenKind>>();
         Self {
             tokens: tokens.into_iter().peekable(),
         }
     }
 
-    fn missing_expected_token(expected: Token, found: Token) -> ParseError {
+    fn missing_expected_token(expected: TokenKind, found: TokenKind) -> ParseError {
         ParseError::MissingExpectedToken { expected, found }
     }
 
@@ -203,15 +210,15 @@ impl Parser {
         }
     }
 
-    fn peek(&mut self) -> Option<&Token> {
+    fn peek(&mut self) -> Option<&TokenKind> {
         self.tokens.peek()
     }
 
-    fn consume(&mut self) -> Option<Token> {
+    fn consume(&mut self) -> Option<TokenKind> {
         self.tokens.next()
     }
 
-    fn expect(&mut self, token: Token) -> Result<(), ParseError> {
+    fn expect(&mut self, token: TokenKind) -> Result<(), ParseError> {
         if Some(&token) == self.peek() {
             self.consume();
             return Ok(());
@@ -224,9 +231,9 @@ impl Parser {
 
     fn expect_ident(&mut self) -> Result<String, ParseError> {
         match self.consume() {
-            Some(Token::Ident(ident)) => Ok(ident),
+            Some(TokenKind::Ident(ident)) => Ok(ident),
             token => Err(Self::missing_expected_token(
-                Token::Ident("".to_string()),
+                TokenKind::Ident("".to_string()),
                 token.unwrap_or_default(),
             )),
         }
@@ -234,15 +241,15 @@ impl Parser {
 
     pub(crate) fn parse(&mut self) -> Result<Program, ParseError> {
         let mut functions = Vec::new();
-        while let Some(Token::KeyWord(KeyWord::FuncDeclare)) = self.peek() {
+        while let Some(TokenKind::KeyWord(KeyWord::FuncDeclare)) = self.peek() {
             let func = self.parse_function()?;
             functions.push(func);
         }
         let mut main_stmts = Vec::new();
         // main block is optional
-        if self.peek() == Some(&Token::KeyWord(KeyWord::ProgramStart)) {
+        if self.peek() == Some(&TokenKind::KeyWord(KeyWord::ProgramStart)) {
             self.consume();
-            while self.peek() != Some(&Token::KeyWord(KeyWord::ProgramEnd)) {
+            while self.peek() != Some(&TokenKind::KeyWord(KeyWord::ProgramEnd)) {
                 let stmt = self.parse_statement()?;
                 main_stmts.push(stmt);
             }
@@ -257,24 +264,24 @@ impl Parser {
 
     fn parse_function(&mut self) -> Result<Function, ParseError> {
         // function := FUNC_DECLARE func_name statements END_FUNC
-        self.expect(Token::KeyWord(KeyWord::FuncDeclare))?;
+        self.expect(TokenKind::KeyWord(KeyWord::FuncDeclare))?;
         let func_name = match self.consume() {
-            Some(Token::Ident(func_name)) => func_name,
+            Some(TokenKind::Ident(func_name)) => func_name,
             token => {
                 return Err(Self::missing_expected_token(
-                    Token::Ident("func_name".to_string()),
+                    TokenKind::Ident("func_name".to_string()),
                     token.unwrap_or_default(),
                 ));
             }
         };
         let mut statements = Vec::new();
         while let Some(token) = self.peek()
-            && token != &Token::KeyWord(KeyWord::EndFunc)
+            && token != &TokenKind::KeyWord(KeyWord::EndFunc)
         {
             let stmt = self.parse_statement()?;
             statements.push(stmt);
         }
-        self.expect(Token::KeyWord(KeyWord::EndFunc))?;
+        self.expect(TokenKind::KeyWord(KeyWord::EndFunc))?;
         Ok(Function {
             name: Box::new(func_name),
             body: Box::new(statements),
@@ -283,59 +290,59 @@ impl Parser {
 
     fn parse_statement(&mut self) -> Result<StmtKind, ParseError> {
         let stmtkind = match self.peek().unwrap_or_default() {
-            Token::Comment(_) => {
-                let Token::Comment(comment) = self.consume().unwrap() else {
+            TokenKind::Comment(_) => {
+                let TokenKind::Comment(comment) = self.consume().unwrap() else {
                     unreachable!()
                 };
                 StmtKind::Comment(comment)
             }
-            Token::KeyWord(KeyWord::BreakLoop) => {
+            TokenKind::KeyWord(KeyWord::BreakLoop) => {
                 // BREAK_LOOP SEMI_COLON
                 self.consume();
                 self.expect(KeyWord::SemiColon.into())?;
                 StmtKind::BreakLoop
             }
-            Token::KeyWord(KeyWord::Print) => {
+            TokenKind::KeyWord(KeyWord::Print) => {
                 // PRINT printexprs SEMI_COLON
                 // printexprs := printexprs expression
                 self.consume();
                 let mut exprs = Vec::new();
-                while Some(&Token::KeyWord(KeyWord::SemiColon)) != self.peek() {
+                while Some(&TokenKind::KeyWord(KeyWord::SemiColon)) != self.peek() {
                     let expr = self.parse_expression(0)?;
                     exprs.push(expr);
                 }
                 self.consume();
                 StmtKind::Print(exprs)
             }
-            Token::KeyWord(KeyWord::FuncCall) => {
+            TokenKind::KeyWord(KeyWord::FuncCall) => {
                 // FUNC_CALL func_name SEMI_COLON
                 self.consume();
                 let func_name = self.expect_ident()?;
-                self.expect(Token::KeyWord(KeyWord::SemiColon))?;
+                self.expect(TokenKind::KeyWord(KeyWord::SemiColon))?;
                 StmtKind::FuncCall(func_name)
             }
-            Token::KeyWord(KeyWord::FuncReturn) => {
+            TokenKind::KeyWord(KeyWord::FuncReturn) => {
                 // FUNC_RETURN expression SEMI_COLON
                 self.consume();
                 let expr = self.parse_expression(0)?;
-                self.expect(Token::KeyWord(KeyWord::SemiColon))?;
+                self.expect(TokenKind::KeyWord(KeyWord::SemiColon))?;
                 StmtKind::FuncReturn(expr)
             }
-            Token::KeyWord(KeyWord::StartDeclare) => {
+            TokenKind::KeyWord(KeyWord::StartDeclare) => {
                 // START_DECLARE variable DECLARE expression SEMI_COLON
                 // START_DECLARE variable DECLARE_ALT expression SEMI_COLON
                 self.consume();
                 let var = self.expect_ident()?;
-                self.expect(Token::KeyWord(KeyWord::Declare))
-                    .or_else(|_| self.expect(Token::KeyWord(KeyWord::DeclareAlt)))?;
+                self.expect(TokenKind::KeyWord(KeyWord::Declare))
+                    .or_else(|_| self.expect(TokenKind::KeyWord(KeyWord::DeclareAlt)))?;
                 let expr = self.parse_expression(0)?;
-                self.expect(Token::KeyWord(KeyWord::SemiColon))?;
+                self.expect(TokenKind::KeyWord(KeyWord::SemiColon))?;
                 StmtKind::Assign {
                     lhs: Box::new(var),
                     rhs: Box::new(expr),
                 }
             }
-            Token::KeyWord(KeyWord::IfCond) => {
+            TokenKind::KeyWord(KeyWord::IfCond) => {
                 // IF_COND logical_expression L_BRACE statements R_BRACE END_BLOCK SEMI_COLON
                 // IF_COND logical_expression L_BRACE statements R_BRACE ELSE_COND L_BRACE statements R_BRACE END_BLOCK SEMI_COLON
                 self.consume();
@@ -346,12 +353,12 @@ impl Parser {
                     | Expr::ExprLeaf(ExprLeaf::BoolFalse) => {}
                     _ => return Err(ParseError::InvalidExpr(expr)),
                 }
-                self.expect(Token::KeyWord(KeyWord::LeftBrace))?;
+                self.expect(TokenKind::KeyWord(KeyWord::LeftBrace))?;
                 let mut statements = Vec::new();
                 let mut else_statements = Vec::new();
 
                 while let Some(token) = self.peek()
-                    && token != &Token::KeyWord(KeyWord::RightBrace)
+                    && token != &TokenKind::KeyWord(KeyWord::RightBrace)
                 {
                     let stmt = self.parse_statement()?;
                     statements.push(stmt);
@@ -359,24 +366,24 @@ impl Parser {
                 self.consume(); // consume the R_BRACE
 
                 match self.consume() {
-                    Some(Token::KeyWord(KeyWord::EndBlock)) => {
-                        self.expect(Token::KeyWord(KeyWord::SemiColon))?;
+                    Some(TokenKind::KeyWord(KeyWord::EndBlock)) => {
+                        self.expect(TokenKind::KeyWord(KeyWord::SemiColon))?;
                     }
-                    Some(Token::KeyWord(KeyWord::ElseCond)) => {
-                        self.expect(Token::KeyWord(KeyWord::LeftBrace))?;
+                    Some(TokenKind::KeyWord(KeyWord::ElseCond)) => {
+                        self.expect(TokenKind::KeyWord(KeyWord::LeftBrace))?;
                         while let Some(token) = self.peek()
-                            && token != &Token::KeyWord(KeyWord::RightBrace)
+                            && token != &TokenKind::KeyWord(KeyWord::RightBrace)
                         {
                             let stmt = self.parse_statement()?;
                             else_statements.push(stmt);
                         }
-                        self.expect(Token::KeyWord(KeyWord::RightBrace))?;
-                        self.expect(Token::KeyWord(KeyWord::EndBlock))?;
-                        self.expect(Token::KeyWord(KeyWord::SemiColon))?;
+                        self.expect(TokenKind::KeyWord(KeyWord::RightBrace))?;
+                        self.expect(TokenKind::KeyWord(KeyWord::EndBlock))?;
+                        self.expect(TokenKind::KeyWord(KeyWord::SemiColon))?;
                     }
                     tok => {
                         return Err(Self::missing_expected_token(
-                            Token::KeyWord(KeyWord::EndBlock),
+                            TokenKind::KeyWord(KeyWord::EndBlock),
                             tok.unwrap_or_default(),
                         ));
                     }
@@ -387,52 +394,52 @@ impl Parser {
                     else_body: Box::new(else_statements),
                 }
             }
-            Token::KeyWord(KeyWord::ForStart) => {
+            TokenKind::KeyWord(KeyWord::ForStart) => {
                 // FOR_START forvar FOR_RANGE_START forvar FOR_RANGE_END L_BRACE statements R_BRACE END_BLOCK SEMI_COLON"
                 // forvar := NUMBER | WORD
                 self.consume();
                 let for_start = match self.consume().unwrap_or_default() {
-                    Token::Ident(ident) => ForVar::Ident(Box::new(ident)),
-                    Token::Literal(Literal::Int(num)) => ForVar::Int(num),
-                    Token::Literal(Literal::Float(num)) => ForVar::Float(num),
+                    TokenKind::Ident(ident) => ForVar::Ident(Box::new(ident)),
+                    TokenKind::Literal(Literal::Int(num)) => ForVar::Int(num),
+                    TokenKind::Literal(Literal::Float(num)) => ForVar::Float(num),
                     tok => {
                         return Err(Self::missing_expected_token(
-                            Token::KeyWord(KeyWord::Assign),
+                            TokenKind::KeyWord(KeyWord::Assign),
                             tok,
                         ));
                     }
                 };
-                self.expect(Token::KeyWord(KeyWord::ForRangeStart))?;
+                self.expect(TokenKind::KeyWord(KeyWord::ForRangeStart))?;
                 let for_end = match self.consume().unwrap_or_default() {
-                    Token::Ident(ident) => ForVar::Ident(Box::new(ident)),
-                    Token::Literal(Literal::Int(num)) => ForVar::Int(num),
-                    Token::Literal(Literal::Float(num)) => ForVar::Float(num),
+                    TokenKind::Ident(ident) => ForVar::Ident(Box::new(ident)),
+                    TokenKind::Literal(Literal::Int(num)) => ForVar::Int(num),
+                    TokenKind::Literal(Literal::Float(num)) => ForVar::Float(num),
                     tok => {
                         return Err(Self::missing_expected_token(
-                            Token::KeyWord(KeyWord::Assign),
+                            TokenKind::KeyWord(KeyWord::Assign),
                             tok,
                         ));
                     }
                 };
-                self.expect(Token::KeyWord(KeyWord::ForRangeEnd))?;
-                self.expect(Token::KeyWord(KeyWord::LeftBrace))?;
+                self.expect(TokenKind::KeyWord(KeyWord::ForRangeEnd))?;
+                self.expect(TokenKind::KeyWord(KeyWord::LeftBrace))?;
                 let mut statements = Vec::new();
                 while let Some(token) = self.peek()
-                    && token != &Token::KeyWord(KeyWord::RightBrace)
+                    && token != &TokenKind::KeyWord(KeyWord::RightBrace)
                 {
                     let stmt = self.parse_statement()?;
                     statements.push(stmt);
                 }
                 self.consume();
-                self.expect(Token::KeyWord(KeyWord::EndBlock))?;
-                self.expect(Token::KeyWord(KeyWord::SemiColon))?;
+                self.expect(TokenKind::KeyWord(KeyWord::EndBlock))?;
+                self.expect(TokenKind::KeyWord(KeyWord::SemiColon))?;
                 StmtKind::ForLoop {
                     start: Box::new(for_start),
                     end: Box::new(for_end),
                     body: Box::new(statements),
                 }
             }
-            Token::KeyWord(KeyWord::WhileLoop) => {
+            TokenKind::KeyWord(KeyWord::WhileLoop) => {
                 // WHILE_LOOP expression L_BRACE statements R_BRACE END_BLOCK SEMI_COLON
                 self.consume();
                 let expr = self.parse_expression(0)?;
@@ -442,55 +449,55 @@ impl Parser {
                     | Expr::ExprLeaf(ExprLeaf::BoolFalse) => {}
                     _ => return Err(ParseError::InvalidExpr(expr)),
                 }
-                self.expect(Token::KeyWord(KeyWord::LeftBrace))?;
+                self.expect(TokenKind::KeyWord(KeyWord::LeftBrace))?;
                 let mut statements = Vec::new();
                 while let Some(token) = self.peek()
-                    && token != &Token::KeyWord(KeyWord::RightBrace)
+                    && token != &TokenKind::KeyWord(KeyWord::RightBrace)
                 {
                     let stmt = self.parse_statement()?;
                     statements.push(stmt);
                 }
                 self.consume();
-                self.expect(Token::KeyWord(KeyWord::EndBlock))?;
-                self.expect(Token::KeyWord(KeyWord::SemiColon))?;
+                self.expect(TokenKind::KeyWord(KeyWord::EndBlock))?;
+                self.expect(TokenKind::KeyWord(KeyWord::SemiColon))?;
                 StmtKind::WhileLoop {
                     condition: Box::new(expr),
                     body: Box::new(statements),
                 }
             }
-            Token::Ident(_) => {
+            TokenKind::Ident(_) => {
                 // variable ASSIGN expression SEMI_COLON
                 // variable FUNC_CALL func_name SEMI_COLON
-                let Token::Ident(ident) = self.consume().unwrap() else {
+                let TokenKind::Ident(ident) = self.consume().unwrap() else {
                     unreachable!()
                 };
                 match self.consume().unwrap_or_default() {
-                    Token::KeyWord(KeyWord::Assign) => {
+                    TokenKind::KeyWord(KeyWord::Assign) => {
                         let expr = self.parse_expression(0)?;
-                        self.expect(Token::KeyWord(KeyWord::SemiColon))?;
+                        self.expect(TokenKind::KeyWord(KeyWord::SemiColon))?;
                         StmtKind::Assign {
                             lhs: Box::new(ident),
                             rhs: Box::new(expr),
                         }
                     }
-                    Token::KeyWord(KeyWord::FuncCall) => {
+                    TokenKind::KeyWord(KeyWord::FuncCall) => {
                         let next_tok = self.consume().unwrap_or_default();
-                        if let Token::Ident(func_name) = next_tok {
-                            self.expect(Token::KeyWord(KeyWord::SemiColon))?;
+                        if let TokenKind::Ident(func_name) = next_tok {
+                            self.expect(TokenKind::KeyWord(KeyWord::SemiColon))?;
                             StmtKind::AssignFuncCall {
                                 lhs: Box::new(ident),
                                 rhs: Box::new(func_name),
                             }
                         } else {
                             return Err(Self::missing_expected_token(
-                                Token::KeyWord(KeyWord::Assign),
+                                TokenKind::KeyWord(KeyWord::Assign),
                                 next_tok,
                             ));
                         }
                     }
                     peek_tok => {
                         return Err(Self::missing_expected_token(
-                            Token::KeyWord(KeyWord::Assign),
+                            TokenKind::KeyWord(KeyWord::Assign),
                             peek_tok,
                         ));
                     }
@@ -499,7 +506,7 @@ impl Parser {
             _ => {
                 // expression SEMI_COLON
                 let expr = self.parse_expression(0)?;
-                self.expect(Token::KeyWord(KeyWord::SemiColon))?;
+                self.expect(TokenKind::KeyWord(KeyWord::SemiColon))?;
                 StmtKind::Expr(expr)
             }
         };
@@ -512,9 +519,9 @@ impl Parser {
         // https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
         // https://journal.stuffwithstuff.com/2011/03/19/pratt-parsers-expression-parsing-made-easy
         let mut lhs = match self.consume().unwrap_or_default() {
-            Token::Literal(literal) => Expr::ExprLeaf(ExprLeaf::from_literal(literal)),
-            Token::Ident(ident) => Expr::Ident(Box::new(ident)),
-            op @ Token::KeyWord(KeyWord::Sub) | op @ Token::KeyWord(KeyWord::Sum) => {
+            TokenKind::Literal(literal) => Expr::ExprLeaf(ExprLeaf::from_literal(literal)),
+            TokenKind::Ident(ident) => Expr::Ident(Box::new(ident)),
+            op @ TokenKind::KeyWord(KeyWord::Sub) | op @ TokenKind::KeyWord(KeyWord::Sum) => {
                 let op = BinaryOp::from_token(&op).unwrap();
                 Expr::UnaryExpr {
                     op,
@@ -524,7 +531,7 @@ impl Parser {
             tok => return Err(ParseError::UnexpectedToken(tok)),
         };
 
-        while let Some(op @ Token::KeyWord(_)) = self.peek() {
+        while let Some(op @ TokenKind::KeyWord(_)) = self.peek() {
             let op = if let Some(bin_op) = BinaryOp::from_token(op) {
                 Op::BinaryOp(bin_op)
             } else if let Some(log_op) = LogicalOp::from_token(op) {
@@ -566,7 +573,7 @@ impl Parser {
 mod tests {
     use color_eyre::eyre::Result;
 
-    use crate::lexer::Lexer;
+    use crate::lexer::{Lexer, TokenKind};
 
     use super::Parser;
 
