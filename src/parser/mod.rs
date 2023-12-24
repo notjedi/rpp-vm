@@ -25,6 +25,9 @@ pub(crate) enum ForVar {
     Ident(BoxStr),
 }
 
+// https://adeschamps.github.io/enum-size
+// https://nnethercote.github.io/perf-book/type-sizes.html
+// https://web.archive.org/web/20230530145515/https://boshen.github.io/javascript-parser-in-rust/docs/ast
 #[derive(Debug)]
 pub(crate) enum StmtKind {
     BreakLoop,
@@ -570,61 +573,17 @@ mod tests {
     #[test]
     fn test_parser() -> Result<()> {
         color_eyre::install()?;
-        let program = r#"
-            EN VAZHI THANI VAZHI myfunc_one
-                AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 100;
-                DOT "returning ix =" ix "to main";
-                IDHU EPDI IRUKKU ix;
-            MARAKKADHINGA
-
-            LAKSHMI START
-                !! checking exprs
-                25 + 15;
-                25 - 15;
-                5.5 * -5;
-                5 / 5;
-                51 % 5;
-
-                !! testing while loop
-                BABA COUNTING STARTS True{
-                    DOT ix;
-                    ix BHAJJI SAAPDU ix + 1;
-                    EN PEAR MANICKAM ix >= 5{
-                        DOT "breaking out of loop...";
-                        BLACK SHEEP;
-                    }KATHAM KATHAM;
-                }KATHAM KATHAM;
-
-                y CHUMMA ADHURUDHULA myfunc_one;
-
-                AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 1;
-                AANDAVAN SOLLRAN range ARUNACHALAM SEIYARAN 16;
-
-                NAA 1 THADAVA SONNA range THADAVA SONNA MADHRI{
-                    EN PEAR MANICKAM ix%15==0{
-                        DOT "FizzBuzz";
-                    } ENAKKU INNURU PEAR IRUKKU{
-                        EN PEAR MANICKAM ix%3==0{
-                            DOT "Fizz";
-                        } ENAKKU INNURU PEAR IRUKKU{
-                            EN PEAR MANICKAM ix%5==0{
-                                DOT "Buzz";
-                            } ENAKKU INNURU PEAR IRUKKU{
-                                DOT ix;
-                            }KATHAM KATHAM;
-                        }KATHAM KATHAM;
-                    }KATHAM KATHAM;
-                    ix BHAJJI SAAPDU ix+1;
-                }KATHAM KATHAM;
-            MAGIZHCHI
-        "#;
+        let program = include_str!("../../testdata/snapshots/test.rpp");
 
         let tokens = Lexer::tokenize_str(program).unwrap();
         let mut parser = Parser::new(tokens);
         let ast = parser.parse().unwrap();
-        dbg!(ast.functions);
-        dbg!(ast.main_stmts);
-        // assert!(false);
+
+        let mut settings = insta::Settings::clone_current();
+        settings.set_snapshot_path("../../testdata/output/");
+        settings.bind(|| {
+            insta::assert_snapshot!(format!("{ast:#?}"));
+        });
         Ok(())
     }
 }

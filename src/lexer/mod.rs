@@ -63,7 +63,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn eat_number(&mut self) -> Token {
-        // TODO: mare clean way to do this?
+        // TODO: more clean way to do this?
         let mut len = 0;
         let mut has_dot = false;
         let mut num_chars = [0 as char; 128];
@@ -341,54 +341,7 @@ mod tests {
 
     #[test]
     fn test_fizz_buzz() {
-        let program = r#"
-            EN VAZHI THANI VAZHI myfunc_one
-                AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 100;
-                DOT "returning ix =" ix "to main";
-                IDHU EPDI IRUKKU ix;
-            MARAKKADHINGA
-
-            LAKSHMI START
-                !! checking exprs
-                25 + 15;
-                25 - 15;
-                5.5 * -5;
-                5 / 5;
-                51 % 5;
-
-                !! testing while loop
-                BABA COUNTING STARTS True{
-                    DOT ix;
-                    ix BHAJJI SAAPDU ix + 1;
-                    EN PEAR MANICKAM ix >= 5{
-                        DOT "breaking out of loop...";
-                        BLACK SHEEP;
-                    }KATHAM KATHAM;
-                }KATHAM KATHAM;
-
-                y CHUMMA ADHURUDHULA myfunc_one;
-
-                AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 1;
-                AANDAVAN SOLLRAN range ARUNACHALAM SEIYARAN 16;
-
-                NAA 1 THADAVA SONNA range THADAVA SONNA MADHRI{
-                    EN PEAR MANICKAM ix%15==0{
-                        DOT "FizzBuzz";
-                    } ENAKKU INNURU PEAR IRUKKU{
-                        EN PEAR MANICKAM ix%3==0{
-                            DOT "Fizz";
-                        } ENAKKU INNURU PEAR IRUKKU{
-                            EN PEAR MANICKAM ix%5==0{
-                                DOT "Buzz";
-                            } ENAKKU INNURU PEAR IRUKKU{
-                                DOT ix;
-                            }KATHAM KATHAM;
-                        }KATHAM KATHAM;
-                    }KATHAM KATHAM;
-                    ix BHAJJI SAAPDU ix+1;
-                }KATHAM KATHAM;
-            MAGIZHCHI
-        "#;
+        let program = include_str!("../../testdata/snapshots/test.rpp");
 
         let tokens = vec![
             KeyWord(FuncDeclare),

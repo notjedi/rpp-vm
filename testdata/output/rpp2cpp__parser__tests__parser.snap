@@ -1,0 +1,336 @@
+---
+source: src/parser/mod.rs
+expression: "format!(\"{ast:#?}\")"
+---
+Program {
+    functions: [
+        Function {
+            name: "myfunc_one",
+            body: [
+                Assign {
+                    lhs: "ix",
+                    rhs: ExprLeaf(
+                        Int(
+                            100,
+                        ),
+                    ),
+                },
+                Print(
+                    [
+                        ExprLeaf(
+                            Str(
+                                "returning ix =",
+                            ),
+                        ),
+                        Ident(
+                            "ix",
+                        ),
+                        ExprLeaf(
+                            Str(
+                                "to main",
+                            ),
+                        ),
+                    ],
+                ),
+                FuncReturn(
+                    Ident(
+                        "ix",
+                    ),
+                ),
+            ],
+        },
+    ],
+    main_stmts: [
+        Comment(
+            " checking exprs",
+        ),
+        Expr(
+            BinaryExpr {
+                op: Add,
+                lhs: ExprLeaf(
+                    Int(
+                        25,
+                    ),
+                ),
+                rhs: ExprLeaf(
+                    Int(
+                        15,
+                    ),
+                ),
+            },
+        ),
+        Expr(
+            BinaryExpr {
+                op: Sub,
+                lhs: ExprLeaf(
+                    Int(
+                        25,
+                    ),
+                ),
+                rhs: ExprLeaf(
+                    Int(
+                        15,
+                    ),
+                ),
+            },
+        ),
+        Expr(
+            BinaryExpr {
+                op: Mul,
+                lhs: ExprLeaf(
+                    Float(
+                        5.5,
+                    ),
+                ),
+                rhs: UnaryExpr {
+                    op: Sub,
+                    child: ExprLeaf(
+                        Int(
+                            5,
+                        ),
+                    ),
+                },
+            },
+        ),
+        Expr(
+            BinaryExpr {
+                op: Div,
+                lhs: ExprLeaf(
+                    Int(
+                        5,
+                    ),
+                ),
+                rhs: ExprLeaf(
+                    Int(
+                        5,
+                    ),
+                ),
+            },
+        ),
+        Expr(
+            BinaryExpr {
+                op: Mod,
+                lhs: ExprLeaf(
+                    Int(
+                        51,
+                    ),
+                ),
+                rhs: ExprLeaf(
+                    Int(
+                        5,
+                    ),
+                ),
+            },
+        ),
+        Comment(
+            " testing while loop",
+        ),
+        WhileLoop {
+            condition: ExprLeaf(
+                BoolTrue,
+            ),
+            body: [
+                Print(
+                    [
+                        Ident(
+                            "ix",
+                        ),
+                    ],
+                ),
+                Assign {
+                    lhs: "ix",
+                    rhs: BinaryExpr {
+                        op: Add,
+                        lhs: Ident(
+                            "ix",
+                        ),
+                        rhs: ExprLeaf(
+                            Int(
+                                1,
+                            ),
+                        ),
+                    },
+                },
+                IfCond {
+                    condition: LogicalExpr {
+                        op: GreaterThanEqual,
+                        lhs: Ident(
+                            "ix",
+                        ),
+                        rhs: ExprLeaf(
+                            Int(
+                                5,
+                            ),
+                        ),
+                    },
+                    body: [
+                        Print(
+                            [
+                                ExprLeaf(
+                                    Str(
+                                        "breaking out of loop...",
+                                    ),
+                                ),
+                            ],
+                        ),
+                        BreakLoop,
+                    ],
+                    else_body: [],
+                },
+            ],
+        },
+        AssignFuncCall {
+            lhs: "y",
+            rhs: "myfunc_one",
+        },
+        Assign {
+            lhs: "ix",
+            rhs: ExprLeaf(
+                Int(
+                    1,
+                ),
+            ),
+        },
+        Assign {
+            lhs: "range",
+            rhs: ExprLeaf(
+                Int(
+                    16,
+                ),
+            ),
+        },
+        ForLoop {
+            start: Int(
+                1,
+            ),
+            end: Ident(
+                "range",
+            ),
+            body: [
+                IfCond {
+                    condition: LogicalExpr {
+                        op: Equal,
+                        lhs: BinaryExpr {
+                            op: Mod,
+                            lhs: Ident(
+                                "ix",
+                            ),
+                            rhs: ExprLeaf(
+                                Int(
+                                    15,
+                                ),
+                            ),
+                        },
+                        rhs: ExprLeaf(
+                            Int(
+                                0,
+                            ),
+                        ),
+                    },
+                    body: [
+                        Print(
+                            [
+                                ExprLeaf(
+                                    Str(
+                                        "FizzBuzz",
+                                    ),
+                                ),
+                            ],
+                        ),
+                    ],
+                    else_body: [
+                        IfCond {
+                            condition: LogicalExpr {
+                                op: Equal,
+                                lhs: BinaryExpr {
+                                    op: Mod,
+                                    lhs: Ident(
+                                        "ix",
+                                    ),
+                                    rhs: ExprLeaf(
+                                        Int(
+                                            3,
+                                        ),
+                                    ),
+                                },
+                                rhs: ExprLeaf(
+                                    Int(
+                                        0,
+                                    ),
+                                ),
+                            },
+                            body: [
+                                Print(
+                                    [
+                                        ExprLeaf(
+                                            Str(
+                                                "Fizz",
+                                            ),
+                                        ),
+                                    ],
+                                ),
+                            ],
+                            else_body: [
+                                IfCond {
+                                    condition: LogicalExpr {
+                                        op: Equal,
+                                        lhs: BinaryExpr {
+                                            op: Mod,
+                                            lhs: Ident(
+                                                "ix",
+                                            ),
+                                            rhs: ExprLeaf(
+                                                Int(
+                                                    5,
+                                                ),
+                                            ),
+                                        },
+                                        rhs: ExprLeaf(
+                                            Int(
+                                                0,
+                                            ),
+                                        ),
+                                    },
+                                    body: [
+                                        Print(
+                                            [
+                                                ExprLeaf(
+                                                    Str(
+                                                        "Buzz",
+                                                    ),
+                                                ),
+                                            ],
+                                        ),
+                                    ],
+                                    else_body: [
+                                        Print(
+                                            [
+                                                Ident(
+                                                    "ix",
+                                                ),
+                                            ],
+                                        ),
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+                Assign {
+                    lhs: "ix",
+                    rhs: BinaryExpr {
+                        op: Add,
+                        lhs: Ident(
+                            "ix",
+                        ),
+                        rhs: ExprLeaf(
+                            Int(
+                                1,
+                            ),
+                        ),
+                    },
+                },
+            ],
+        },
+    ],
+}
