@@ -197,7 +197,6 @@ impl Parser {
                 BinaryOp::Add | BinaryOp::Sub => 5,
                 BinaryOp::Mul | BinaryOp::Div | BinaryOp::Mod => 7,
             },
-            _ => unreachable!(),
         }
     }
 
@@ -507,6 +506,7 @@ impl Parser {
     fn parse_expression(&mut self, precedence_limit: u32) -> Result<Expr, ParseError> {
         // Pratt parsing
         // https://martin.janiczek.cz/2023/07/03/demystifying-pratt-parsers.html
+        // https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
         // https://journal.stuffwithstuff.com/2011/03/19/pratt-parsers-expression-parsing-made-easy
         let mut lhs = match self.consume().unwrap_or_default() {
             Token::Literal(literal) => Expr::ExprLeaf(ExprLeaf::from_literal(literal)),
@@ -521,18 +521,13 @@ impl Parser {
             tok => return Err(ParseError::UnexpectedToken(tok)),
         };
 
-        loop {
-            let op = match self.peek() {
-                Some(op @ Token::KeyWord(_)) => {
-                    if let Some(bin_op) = BinaryOp::from_token(&op) {
-                        Op::BinaryOp(bin_op)
-                    } else if let Some(log_op) = LogicalOp::from_token(&op) {
-                        Op::LogicalOp(log_op)
-                    } else {
-                        break;
-                    }
-                }
-                _ => break,
+        while let Some(op @ Token::KeyWord(_)) = self.peek() {
+            let op = if let Some(bin_op) = BinaryOp::from_token(op) {
+                Op::BinaryOp(bin_op)
+            } else if let Some(log_op) = LogicalOp::from_token(op) {
+                Op::LogicalOp(log_op)
+            } else {
+                break;
             };
 
             let precedence = Self::get_binding_power(&op);
@@ -542,7 +537,7 @@ impl Parser {
             self.consume();
 
             let rhs = self.parse_expression(precedence)?;
-            let lhs = match op {
+            match op {
                 Op::BinaryOp(bin_op) => {
                     lhs = Expr::BinaryExpr {
                         op: bin_op,
