@@ -1,5 +1,6 @@
 use crate::lexer::{KeyWord, Literal, Token, TokenKind};
 
+use color_eyre::eyre::Result;
 use std::{iter::Peekable, vec::IntoIter};
 use thiserror::Error;
 
@@ -20,6 +21,8 @@ pub(crate) enum ParseError {
     #[error("invalid expr: {0:?}")]
     InvalidExpr(Expr),
 }
+
+type PResult<T> = Result<T, ParseError>;
 
 #[derive(Debug)]
 pub(crate) enum ForVar {
@@ -162,8 +165,8 @@ pub(crate) enum Expr {
 
 #[derive(Debug)]
 pub(crate) struct Function {
-    name: BoxStr,
-    body: BoxVecStmtKind,
+    pub(crate) name: BoxStr,
+    pub(crate) body: BoxVecStmtKind,
 }
 
 #[derive(Debug)]
@@ -219,7 +222,7 @@ impl Parser {
         self.tokens.next()
     }
 
-    fn expect(&mut self, token: TokenKind) -> Result<(), ParseError> {
+    fn expect(&mut self, token: TokenKind) -> PResult<()> {
         if Some(&token) == self.peek() {
             self.consume();
             return Ok(());
@@ -230,7 +233,7 @@ impl Parser {
         ))
     }
 
-    fn expect_ident(&mut self) -> Result<String, ParseError> {
+    fn expect_ident(&mut self) -> PResult<String> {
         match self.consume() {
             Some(TokenKind::Ident(ident)) => Ok(ident),
             token => Err(Self::missing_expected_token(
@@ -240,7 +243,7 @@ impl Parser {
         }
     }
 
-    pub(crate) fn parse(&mut self) -> Result<Program, ParseError> {
+    pub(crate) fn parse(&mut self) -> PResult<Program> {
         let mut functions = Vec::new();
         while let Some(TokenKind::KeyWord(KeyWord::FuncDeclare)) = self.peek() {
             let func = self.parse_function()?;
@@ -263,7 +266,7 @@ impl Parser {
         })
     }
 
-    fn parse_function(&mut self) -> Result<Function, ParseError> {
+    fn parse_function(&mut self) -> PResult<Function> {
         // function := FUNC_DECLARE func_name statements END_FUNC
         self.expect(TokenKind::KeyWord(KeyWord::FuncDeclare))?;
         let func_name = match self.consume() {
@@ -289,7 +292,7 @@ impl Parser {
         })
     }
 
-    fn parse_statement(&mut self) -> Result<StmtKind, ParseError> {
+    fn parse_statement(&mut self) -> PResult<StmtKind> {
         let stmtkind = match self.peek().unwrap_or_default() {
             TokenKind::Comment(_) => {
                 let TokenKind::Comment(comment) = self.consume().unwrap() else {
@@ -514,7 +517,7 @@ impl Parser {
         Ok(stmtkind)
     }
 
-    fn parse_expression(&mut self, precedence_limit: u32) -> Result<Expr, ParseError> {
+    fn parse_expression(&mut self, precedence_limit: u32) -> PResult<Expr> {
         // Pratt parsing
         // https://martin.janiczek.cz/2023/07/03/demystifying-pratt-parsers.html
         // https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html

@@ -3,6 +3,7 @@
 #![allow(incomplete_features)]
 #![allow(clippy::enum_variant_names)]
 
+mod interpreter;
 mod lexer;
 mod parser;
 

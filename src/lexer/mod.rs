@@ -1,4 +1,5 @@
 mod tokens;
+use color_eyre::eyre::Result;
 pub(crate) use tokens::{KeyWord, Literal, Span, Token, TokenKind};
 
 use std::{collections::VecDeque, i64, iter::Peekable, str::Chars};
@@ -12,6 +13,8 @@ pub(crate) enum LexError {
     #[error("expected: {expected}, found: {found}")]
     MissingExpectedChar { expected: char, found: char },
 }
+
+type LResult<T> = Result<T, LexError>;
 
 pub(crate) struct Lexer<'a> {
     input: Peekable<Chars<'a>>,
@@ -28,7 +31,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    pub(crate) fn tokensize(&mut self) -> Result<Vec<Token>, LexError> {
+    pub(crate) fn tokensize(&mut self) -> LResult<Vec<Token>> {
         let mut tokens = Vec::new();
         loop {
             let token = self.advance_token()?;
@@ -40,7 +43,7 @@ impl<'a> Lexer<'a> {
         Ok(tokens)
     }
 
-    pub(crate) fn tokenize_str(program: &str) -> Result<Vec<Token>, LexError> {
+    pub(crate) fn tokenize_str(program: &str) -> LResult<Vec<Token>> {
         let mut lexer = Lexer::new(program);
         lexer.tokensize()
     }
@@ -113,7 +116,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn eat_literal_str(&mut self) -> Result<String, LexError> {
+    fn eat_literal_str(&mut self) -> LResult<String> {
         // NOTE: does not support `"` inside the string
         self.consume();
         let line = self.take_while(|&ch| ch != '"');
@@ -130,7 +133,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn eat_literal_char(&mut self) -> Result<char, LexError> {
+    fn eat_literal_char(&mut self) -> LResult<char> {
         self.consume();
         let ch = self
             .consume()
@@ -188,7 +191,7 @@ impl<'a> Lexer<'a> {
         &mut self,
         expected: char,
         token: TokenKind,
-    ) -> Result<TokenKind, LexError> {
+    ) -> LResult<TokenKind> {
         if let Some(found) = self.peek() {
             if found == expected {
                 self.consume();
@@ -199,7 +202,7 @@ impl<'a> Lexer<'a> {
         Err(LexError::UnexpectedChar(char::default()))
     }
 
-    fn eat_punctuation(&mut self) -> Result<TokenKind, LexError> {
+    fn eat_punctuation(&mut self) -> LResult<TokenKind> {
         let ch = self.consume().unwrap();
 
         let token = match ch {
@@ -325,7 +328,7 @@ impl<'a> Lexer<'a> {
         kw.map_or_else(|| TokenKind::Ident(self.eat_ident()), TokenKind::KeyWord)
     }
 
-    pub(crate) fn advance_token(&mut self) -> Result<Token, LexError> {
+    pub(crate) fn advance_token(&mut self) -> LResult<Token> {
         self.skip_whitespace();
         let (start_row, start_col) = (self.row, self.col);
         let ch = match self.peek() {
@@ -363,7 +366,7 @@ impl<'a> Lexer<'a> {
     }
 
     // https://github.com/tjdevries/vim9jit/blob/9a530e1f0f346f86784eef8ff7026849b1b9ed64/crates/vim9-lexer/src/lib.rs#L1039
-    pub(crate) fn snapshot_lexing(input: &'a str) -> Result<String, LexError> {
+    pub(crate) fn snapshot_lexing(input: &'a str) -> LResult<String> {
         let mut lexer = Self::new(input);
         let tokens = lexer.tokensize()?;
         let mut tokens = VecDeque::from(tokens);
