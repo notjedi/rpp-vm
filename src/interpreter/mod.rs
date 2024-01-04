@@ -1,4 +1,5 @@
 use color_eyre::eyre::Result;
+use itertools::Itertools;
 
 use crate::parser::{Function, Program, StmtKind};
 
@@ -14,7 +15,17 @@ pub(crate) struct Variable {
     value: Value,
 }
 
+impl Variable {
+    fn new(name: &str, value: Value) -> Self {
+        Self {
+            name: name.to_string(),
+            value,
+        }
+    }
+}
+
 pub(crate) struct Environment {
+    functions: Vec<Function>,
     variables: Vec<Variable>,
     scopes: Vec<usize>,
 }
@@ -22,6 +33,7 @@ pub(crate) struct Environment {
 impl Environment {
     pub(crate) fn new() -> Self {
         Self {
+            functions: vec![],
             variables: vec![],
             scopes: vec![],
         }
@@ -34,14 +46,35 @@ impl Environment {
     pub(crate) fn end_scope(&mut self) {
         // TODO: do not unwrap
         let num_vars = self.variables.len() - self.scopes.pop().unwrap();
-        for _ in 0..num_vars {
+        (0..num_vars).for_each(|_| {
             self.variables.pop();
-        }
+        });
     }
-}
 
-pub(crate) struct Interpreter {
-    environment: Environment,
+    pub(crate) fn register_function(&mut self, func: &mut Function) {
+        self.functions.push(func.clone())
+    }
+
+    pub(crate) fn register_variable(&mut self, name: &str, value: Value) {
+        let var = Variable::new(name, value);
+        self.variables.push(var);
+    }
+
+    pub(crate) fn update_variable(&mut self, name: &str, value: Value) -> Result<()> {
+        if let Some(idx) = self.get_idx_of_var(name) {
+            self.variables[idx] = value;
+            return Ok(());
+        }
+        // TODO: throw proper error
+        Err(())
+    }
+
+    pub(crate) fn get_idx_of_var(&mut self, name: &str) -> Option<usize> {
+        self.variables
+            .iter()
+            .find_position(|var| &var.name == name)
+            .map(|(idx, _)| idx)
+    }
 }
 
 pub(crate) trait Visitor {
@@ -49,7 +82,29 @@ pub(crate) trait Visitor {
         Ok(())
     }
 
-    fn register_variable(&mut self, name: &mut str, value: Value) -> Result<()> {
+    fn register_variable(&mut self, name: &str, value: Value) -> Result<()> {
+        Ok(())
+    }
+
+    fn visit_function(&mut self, func: &mut Function) -> Result<()> {
+        Ok(())
+    }
+
+    fn visit_stmt(&mut self, stmt: &mut StmtKind) -> Result<()> {
+        Ok(())
+    }
+}
+
+pub(crate) struct Interpreter {
+    environment: Environment,
+}
+
+impl Visitor for Interpreter {
+    fn register_function(&mut self, func: &mut Function) -> Result<()> {
+        Ok(())
+    }
+
+    fn register_variable(&mut self, name: &str, value: Value) -> Result<()> {
         Ok(())
     }
 

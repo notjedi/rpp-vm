@@ -24,7 +24,7 @@ pub(crate) enum ParseError {
 
 type PResult<T> = Result<T, ParseError>;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) enum ForVar {
     Int(i64),
     Float(f64),
@@ -34,7 +34,7 @@ pub(crate) enum ForVar {
 // https://adeschamps.github.io/enum-size
 // https://nnethercote.github.io/perf-book/type-sizes.html
 // https://web.archive.org/web/20230530145515/https://boshen.github.io/javascript-parser-in-rust/docs/ast
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) enum StmtKind {
     BreakLoop,
     Expr(Expr),
@@ -66,7 +66,7 @@ pub(crate) enum StmtKind {
     },
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) enum BinaryOp {
     Add,
     Sub,
@@ -89,7 +89,7 @@ impl BinaryOp {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) enum LogicalOp {
     GreaterThan,
     LessThan,
@@ -114,7 +114,7 @@ impl LogicalOp {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) enum ExprLeaf {
     BoolTrue,
     BoolFalse,
@@ -143,7 +143,7 @@ pub(crate) enum Op {
     LogicalOp(LogicalOp),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) enum Expr {
     BinaryExpr {
         op: BinaryOp,
@@ -163,7 +163,7 @@ pub(crate) enum Expr {
     Ident(BoxStr),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct Function {
     pub(crate) name: BoxStr,
     pub(crate) body: BoxVecStmtKind,
