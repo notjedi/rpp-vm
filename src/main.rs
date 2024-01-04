@@ -18,12 +18,13 @@ fn main() -> Result<()> {
                 AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 100;
                 DOT "returning ix =" ix "to main";
                 IDHU EPDI IRUKKU ix;
-                51 % 5 * 10 / 2;
+                1 + 2 - 3 * 4 + 5 / 6 - 8 * 9;
 
                 BABA COUNTING STARTS True{
                     DOT ix;
                     ix BHAJJI SAAPDU ix + 1;
-                    EN PEAR MANICKAM ix >= 5{
+                    !! EN PEAR MANICKAM ix >= 5{
+                    EN PEAR MANICKAM ix % 3 == ix % 6 {
                         BLACK SHEEP;
                     }KATHAM KATHAM;
                 }KATHAM KATHAM;

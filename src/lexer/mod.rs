@@ -60,6 +60,7 @@ impl<'a> Lexer<'a> {
     }
 
     #[inline]
+    #[must_use]
     fn peek(&mut self) -> Option<char> {
         self.input.peek().copied()
     }
@@ -390,11 +391,12 @@ impl<'a> Lexer<'a> {
 
 #[cfg(test)]
 mod tests {
-
-    use super::{LexError, Lexer};
+    use super::Lexer;
+    use color_eyre::eyre::Result;
 
     #[test]
-    fn test_fizz_buzz() -> Result<(), LexError> {
+    fn test_fizz_buzz() -> Result<()> {
+        color_eyre::install()?;
         let program = include_str!("../../testdata/snapshots/test.rpp");
         let snapshot_string = Lexer::snapshot_lexing(program)?;
 

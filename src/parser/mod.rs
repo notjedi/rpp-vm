@@ -210,6 +210,7 @@ impl Parser {
         }
     }
 
+    #[must_use]
     fn peek(&mut self) -> Option<&TokenKind> {
         self.tokens.peek()
     }
@@ -544,6 +545,7 @@ impl Parser {
             if precedence <= precedence_limit {
                 break;
             }
+            // Consume the operator iff precedence <= precedence_limit
             self.consume();
 
             let rhs = self.parse_expression(precedence)?;
@@ -571,15 +573,12 @@ impl Parser {
 
 #[cfg(test)]
 mod tests {
-    use color_eyre::eyre::Result;
-
-    use crate::lexer::Lexer;
-
     use super::Parser;
+    use crate::lexer::Lexer;
+    use color_eyre::eyre::Result;
 
     #[test]
     fn test_parser() -> Result<()> {
-        color_eyre::install()?;
         let program = include_str!("../../testdata/snapshots/test.rpp");
 
         let tokens = Lexer::tokenize_str(program).unwrap();
