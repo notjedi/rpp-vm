@@ -578,15 +578,15 @@ impl Parser {
 mod tests {
     use super::Parser;
     use crate::lexer::Lexer;
-    use color_eyre::eyre::Result;
+    use color_eyre::eyre::{eyre, Result};
 
     #[test]
     fn test_parser() -> Result<()> {
         let program = include_str!("../../testdata/snapshots/test.rpp");
 
-        let tokens = Lexer::tokenize_str(program).unwrap();
+        let tokens = Lexer::tokenize_str(program)?;
         let mut parser = Parser::new(tokens);
-        let ast = parser.parse().unwrap();
+        let ast = parser.parse()?;
 
         let mut settings = insta::Settings::clone_current();
         settings.set_snapshot_path("../../testdata/output/");

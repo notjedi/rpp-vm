@@ -5,7 +5,7 @@ pub(crate) use tokens::{KeyWord, Literal, Span, Token, TokenKind};
 use std::{collections::VecDeque, i64, iter::Peekable, str::Chars};
 use thiserror::Error;
 
-#[derive(Debug, Error)]
+#[derive(Clone, Debug, Error)]
 pub(crate) enum LexError {
     #[error("unexpected character {0}")]
     UnexpectedChar(char),

@@ -1,8 +1,9 @@
-use color_eyre::eyre::Result;
+use color_eyre::eyre::{eyre, Result};
 use itertools::Itertools;
 
-use crate::parser::{Function, Program, StmtKind};
+use crate::parser::{Expr, ExprLeaf, Function, Program, StmtKind};
 
+#[derive(Debug)]
 pub(crate) enum Value {
     Int(i64),
     Float(f64),
@@ -10,6 +11,7 @@ pub(crate) enum Value {
     Str(String),
 }
 
+#[derive(Debug)]
 pub(crate) struct Variable {
     name: String,
     value: Value,
@@ -24,6 +26,7 @@ impl Variable {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct Environment {
     functions: Vec<Function>,
     variables: Vec<Variable>,
@@ -62,11 +65,17 @@ impl Environment {
 
     pub(crate) fn update_variable(&mut self, name: &str, value: Value) -> Result<()> {
         if let Some(idx) = self.get_idx_of_var(name) {
-            self.variables[idx] = value;
+            self.variables[idx].value = value;
             return Ok(());
         }
-        // TODO: throw proper error
-        Err(())
+        Err(eyre!("Cannot find variable with name {name}"))
+    }
+
+    pub(crate) fn get_idx_of_func(&mut self, name: &str) -> Option<usize> {
+        self.functions
+            .iter()
+            .find_position(|func| *func.name == name)
+            .map(|(idx, _)| idx)
     }
 
     pub(crate) fn get_idx_of_var(&mut self, name: &str) -> Option<usize> {
@@ -93,26 +102,95 @@ pub(crate) trait Visitor {
     fn visit_stmt(&mut self, stmt: &mut StmtKind) -> Result<()> {
         Ok(())
     }
+
+    fn visit_expr(&mut self, expr: &mut Expr) -> Result<()> {
+        Ok(())
+    }
+
+    fn visit_expr_leaf(&mut self, expr_leaf: &mut ExprLeaf) -> Result<()> {
+        Ok(())
+    }
 }
 
+#[derive(Debug)]
 pub(crate) struct Interpreter {
     environment: Environment,
 }
 
+impl Interpreter {
+    pub(crate) fn new() -> Self {
+        Self {
+            environment: Environment::new(),
+        }
+    }
+}
+
 impl Visitor for Interpreter {
     fn register_function(&mut self, func: &mut Function) -> Result<()> {
+        self.environment.register_function(func);
         Ok(())
     }
 
     fn register_variable(&mut self, name: &str, value: Value) -> Result<()> {
+        self.environment.register_variable(name, value);
         Ok(())
     }
 
     fn visit_function(&mut self, func: &mut Function) -> Result<()> {
-        Ok(())
+        if let Some(idx) = self.environment.get_idx_of_func(&func.name) {
+            self.environment.start_scope();
+            func.body.visit(self)?;
+            self.environment.end_scope();
+            return Ok(());
+        }
+        Err(eyre!("can't find function in scope"))
     }
 
     fn visit_stmt(&mut self, stmt: &mut StmtKind) -> Result<()> {
+        match stmt {
+            StmtKind::BreakLoop => todo!(),
+            StmtKind::Expr(_) => todo!(),
+            StmtKind::Comment(_) => todo!(),
+            StmtKind::Print(exprs) => {
+                for expr in exprs {
+                    self.visit_expr(expr)?;
+                }
+            }
+            StmtKind::FuncCall(_) => todo!(),
+            StmtKind::FuncReturn(_) => todo!(),
+            StmtKind::Assign { lhs, rhs } => todo!(),
+            StmtKind::AssignFuncCall { lhs, rhs } => todo!(),
+            StmtKind::IfCond {
+                condition,
+                body,
+                else_body,
+            } => todo!(),
+            StmtKind::ForLoop { start, end, body } => todo!(),
+            StmtKind::WhileLoop { condition, body } => todo!(),
+        }
+        Ok(())
+    }
+
+    fn visit_expr(&mut self, expr: &mut Expr) -> Result<()> {
+        match expr {
+            Expr::BinaryExpr { op, lhs, rhs } => todo!(),
+            Expr::LogicalExpr { op, lhs, rhs } => todo!(),
+            Expr::UnaryExpr { op, child } => todo!(),
+            Expr::ExprLeaf(expr_leaf) => self.visit_expr_leaf(expr_leaf)?,
+            Expr::Ident(_) => todo!(),
+        }
+        Ok(())
+    }
+
+    fn visit_expr_leaf(&mut self, expr_leaf: &mut ExprLeaf) -> Result<()> {
+        match expr_leaf {
+            ExprLeaf::BoolTrue => todo!(),
+            ExprLeaf::BoolFalse => todo!(),
+            ExprLeaf::Int(_) => todo!(),
+            ExprLeaf::Float(_) => todo!(),
+            ExprLeaf::Char(_) => todo!(),
+            ExprLeaf::Str(expr_string) => println!("{expr_string}"),
+        }
         Ok(())
     }
 }
@@ -137,19 +215,19 @@ impl Visitable for Function {
     }
 }
 
-impl Visitable for StmtKind {
-    fn visit(&mut self, v: &mut dyn Visitor) -> Result<()> {
-        v.visit_stmt(self)?;
-        Ok(())
-    }
-}
-
 impl Visitable for Program {
     fn visit(&mut self, v: &mut dyn Visitor) -> Result<()> {
         for function in &mut self.functions {
             v.register_function(function)?;
         }
         self.main_stmts.visit(v)?;
+        Ok(())
+    }
+}
+
+impl Visitable for StmtKind {
+    fn visit(&mut self, v: &mut dyn Visitor) -> Result<()> {
+        v.visit_stmt(self)?;
         Ok(())
     }
 }
