@@ -17,6 +17,7 @@ fn main() -> Result<()> {
     color_eyre::install()?;
     let program = r#"
         LAKSHMI START
+            !! AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 100;
             DOT "Hello, world!";
         MAGIZHCHI
     "#;
@@ -25,6 +26,6 @@ fn main() -> Result<()> {
     let mut parser = Parser::new(tokens);
     let mut ast = parser.parse()?;
     let mut interpreter = Interpreter::new();
-    ast.visit(&mut interpreter);
+    ast.visit(&mut interpreter)?;
     Ok(())
 }

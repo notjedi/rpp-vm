@@ -1,5 +1,6 @@
 use color_eyre::eyre::{eyre, Result};
 use itertools::Itertools;
+use std::fmt::{Debug, Display, Write};
 
 use crate::parser::{Expr, ExprLeaf, Function, Program, StmtKind};
 
@@ -9,6 +10,17 @@ pub(crate) enum Value {
     Float(f64),
     Bool(bool),
     Str(String),
+}
+
+impl Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Int(arg0) => f.write_fmt(format_args!("{}", arg0)),
+            Self::Float(arg0) => f.write_fmt(format_args!("{}", arg0)),
+            Self::Bool(arg0) => f.write_fmt(format_args!("{}", arg0)),
+            Self::Str(arg0) => f.write_fmt(format_args!("{}", arg0)),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -103,13 +115,9 @@ pub(crate) trait Visitor {
         Ok(())
     }
 
-    fn visit_expr(&mut self, expr: &mut Expr) -> Result<()> {
-        Ok(())
-    }
+    fn visit_expr(&mut self, expr: &mut Expr) -> Result<Value>;
 
-    fn visit_expr_leaf(&mut self, expr_leaf: &mut ExprLeaf) -> Result<()> {
-        Ok(())
-    }
+    fn visit_expr_leaf(&mut self, expr_leaf: &mut ExprLeaf) -> Result<Value>;
 }
 
 #[derive(Debug)]
@@ -150,11 +158,14 @@ impl Visitor for Interpreter {
         match stmt {
             StmtKind::BreakLoop => todo!(),
             StmtKind::Expr(_) => todo!(),
-            StmtKind::Comment(_) => todo!(),
+            StmtKind::Comment(_) => {}
             StmtKind::Print(exprs) => {
+                let mut print_str = String::new();
                 for expr in exprs {
-                    self.visit_expr(expr)?;
+                    let val = expr.visit(self)?;
+                    write!(&mut print_str, "{}", val)?;
                 }
+                println!("{}", &print_str);
             }
             StmtKind::FuncCall(_) => todo!(),
             StmtKind::FuncReturn(_) => todo!(),
@@ -171,35 +182,35 @@ impl Visitor for Interpreter {
         Ok(())
     }
 
-    fn visit_expr(&mut self, expr: &mut Expr) -> Result<()> {
-        match expr {
+    fn visit_expr(&mut self, expr: &mut Expr) -> Result<Value> {
+        let val = match expr {
             Expr::BinaryExpr { op, lhs, rhs } => todo!(),
             Expr::LogicalExpr { op, lhs, rhs } => todo!(),
             Expr::UnaryExpr { op, child } => todo!(),
             Expr::ExprLeaf(expr_leaf) => self.visit_expr_leaf(expr_leaf)?,
             Expr::Ident(_) => todo!(),
-        }
-        Ok(())
+        };
+        Ok(val)
     }
 
-    fn visit_expr_leaf(&mut self, expr_leaf: &mut ExprLeaf) -> Result<()> {
-        match expr_leaf {
+    fn visit_expr_leaf(&mut self, expr_leaf: &mut ExprLeaf) -> Result<Value> {
+        let val = match expr_leaf {
             ExprLeaf::BoolTrue => todo!(),
             ExprLeaf::BoolFalse => todo!(),
             ExprLeaf::Int(_) => todo!(),
             ExprLeaf::Float(_) => todo!(),
             ExprLeaf::Char(_) => todo!(),
-            ExprLeaf::Str(expr_string) => println!("{expr_string}"),
-        }
-        Ok(())
+            ExprLeaf::Str(expr_string) => Value::Str(*expr_string.clone()),
+        };
+        Ok(val)
     }
 }
 
-pub(crate) trait Visitable {
-    fn visit(&mut self, v: &mut dyn Visitor) -> Result<()>;
+pub(crate) trait Visitable<T> {
+    fn visit(&mut self, v: &mut dyn Visitor) -> Result<T>;
 }
 
-impl<T: Visitable> Visitable for Vec<T> {
+impl<T: Visitable<()>> Visitable<()> for Vec<T> {
     fn visit(&mut self, v: &mut dyn Visitor) -> Result<()> {
         for elem in self {
             elem.visit(v)?;
@@ -208,14 +219,14 @@ impl<T: Visitable> Visitable for Vec<T> {
     }
 }
 
-impl Visitable for Function {
+impl Visitable<()> for Function {
     fn visit(&mut self, v: &mut dyn Visitor) -> Result<()> {
         v.visit_function(self)?;
         Ok(())
     }
 }
 
-impl Visitable for Program {
+impl Visitable<()> for Program {
     fn visit(&mut self, v: &mut dyn Visitor) -> Result<()> {
         for function in &mut self.functions {
             v.register_function(function)?;
@@ -225,9 +236,21 @@ impl Visitable for Program {
     }
 }
 
-impl Visitable for StmtKind {
+impl Visitable<()> for StmtKind {
     fn visit(&mut self, v: &mut dyn Visitor) -> Result<()> {
         v.visit_stmt(self)?;
         Ok(())
+    }
+}
+
+impl Visitable<Value> for Expr {
+    fn visit(&mut self, v: &mut dyn Visitor) -> Result<Value> {
+        v.visit_expr(self)
+    }
+}
+
+impl Visitable<Value> for ExprLeaf {
+    fn visit(&mut self, v: &mut dyn Visitor) -> Result<Value> {
+        v.visit_expr_leaf(self)
     }
 }
