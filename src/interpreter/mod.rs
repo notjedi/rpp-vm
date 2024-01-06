@@ -4,23 +4,33 @@ use std::fmt::{Debug, Display, Write};
 
 use crate::parser::{Expr, ExprLeaf, Function, Program, StmtKind};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub(crate) enum Value {
+    Unit,
     Int(i64),
     Float(f64),
     Bool(bool),
-    Str(String),
+    Str(Box<String>),
 }
 
 impl Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::Unit => f.write_fmt(format_args!("unit")),
             Self::Int(arg0) => f.write_fmt(format_args!("{}", arg0)),
             Self::Float(arg0) => f.write_fmt(format_args!("{}", arg0)),
             Self::Bool(arg0) => f.write_fmt(format_args!("{}", arg0)),
             Self::Str(arg0) => f.write_fmt(format_args!("{}", arg0)),
         }
     }
+}
+
+#[derive(Debug, PartialEq)]
+pub(crate) enum ControlFlow {
+    // NOTE: easy to add support of `continue` in the future
+    Nop,
+    Break,
+    Return(Value),
 }
 
 #[derive(Debug)]
@@ -107,12 +117,12 @@ pub(crate) trait Visitor {
         Ok(())
     }
 
-    fn visit_function(&mut self, func: &mut Function) -> Result<()> {
-        Ok(())
+    fn visit_function(&mut self, func: &mut Function) -> Result<Value> {
+        Ok(Value::Unit)
     }
 
-    fn visit_stmt(&mut self, stmt: &mut StmtKind) -> Result<()> {
-        Ok(())
+    fn visit_stmt(&mut self, stmt: &mut StmtKind) -> Result<ControlFlow> {
+        Ok(ControlFlow::Nop)
     }
 
     fn visit_expr(&mut self, expr: &mut Expr) -> Result<Value>;
@@ -144,21 +154,22 @@ impl Visitor for Interpreter {
         Ok(())
     }
 
-    fn visit_function(&mut self, func: &mut Function) -> Result<()> {
+    fn visit_function(&mut self, func: &mut Function) -> Result<Value> {
         if let Some(idx) = self.environment.get_idx_of_func(&func.name) {
             self.environment.start_scope();
             func.body.visit(self)?;
             self.environment.end_scope();
-            return Ok(());
+            // TODO: take care of return statements inside the function
+            return Ok(Value::Unit);
         }
         Err(eyre!("can't find function in scope"))
     }
 
-    fn visit_stmt(&mut self, stmt: &mut StmtKind) -> Result<()> {
-        match stmt {
+    fn visit_stmt(&mut self, stmt: &mut StmtKind) -> Result<ControlFlow> {
+        let ctrl_flow = match stmt {
             StmtKind::BreakLoop => todo!(),
             StmtKind::Expr(_) => todo!(),
-            StmtKind::Comment(_) => {}
+            StmtKind::Comment(_) => ControlFlow::Nop,
             StmtKind::Print(exprs) => {
                 let mut print_str = String::new();
                 for expr in exprs {
@@ -166,6 +177,7 @@ impl Visitor for Interpreter {
                     write!(&mut print_str, "{}", val)?;
                 }
                 println!("{}", &print_str);
+                ControlFlow::Nop
             }
             StmtKind::FuncCall(_) => todo!(),
             StmtKind::FuncReturn(_) => todo!(),
@@ -178,8 +190,8 @@ impl Visitor for Interpreter {
             } => todo!(),
             StmtKind::ForLoop { start, end, body } => todo!(),
             StmtKind::WhileLoop { condition, body } => todo!(),
-        }
-        Ok(())
+        };
+        Ok(ctrl_flow)
     }
 
     fn visit_expr(&mut self, expr: &mut Expr) -> Result<Value> {
@@ -200,7 +212,7 @@ impl Visitor for Interpreter {
             ExprLeaf::Int(_) => todo!(),
             ExprLeaf::Float(_) => todo!(),
             ExprLeaf::Char(_) => todo!(),
-            ExprLeaf::Str(expr_string) => Value::Str(*expr_string.clone()),
+            ExprLeaf::Str(expr_string) => Value::Str(expr_string.clone()),
         };
         Ok(val)
     }
@@ -219,10 +231,25 @@ impl<T: Visitable<()>> Visitable<()> for Vec<T> {
     }
 }
 
-impl Visitable<()> for Function {
-    fn visit(&mut self, v: &mut dyn Visitor) -> Result<()> {
-        v.visit_function(self)?;
-        Ok(())
+impl<T: Visitable<ControlFlow>> Visitable<ControlFlow> for Vec<T> {
+    fn visit(&mut self, v: &mut dyn Visitor) -> Result<ControlFlow> {
+        let mut res = ControlFlow::Nop;
+        for elem in self {
+            res = elem.visit(v)?;
+            if res == ControlFlow::Break {
+                return Ok(ControlFlow::Break);
+            }
+        }
+        Ok(match res {
+            ControlFlow::Return(_) => res,
+            _ => ControlFlow::Nop,
+        })
+    }
+}
+
+impl Visitable<Value> for Function {
+    fn visit(&mut self, v: &mut dyn Visitor) -> Result<Value> {
+        v.visit_function(self)
     }
 }
 
@@ -231,15 +258,18 @@ impl Visitable<()> for Program {
         for function in &mut self.functions {
             v.register_function(function)?;
         }
-        self.main_stmts.visit(v)?;
+        for stmt in self.main_stmts.iter_mut() {
+            // TODO: take care of break stmts, it shouldn't reach here. it should be caught before
+            // it reaches here.
+            stmt.visit(v)?;
+        }
         Ok(())
     }
 }
 
-impl Visitable<()> for StmtKind {
-    fn visit(&mut self, v: &mut dyn Visitor) -> Result<()> {
-        v.visit_stmt(self)?;
-        Ok(())
+impl Visitable<ControlFlow> for StmtKind {
+    fn visit(&mut self, v: &mut dyn Visitor) -> Result<ControlFlow> {
+        v.visit_stmt(self)
     }
 }
 
