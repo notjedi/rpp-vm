@@ -1,14 +1,24 @@
 use color_eyre::eyre::{eyre, Result};
 use itertools::Itertools;
 use std::fmt::{Debug, Display, Write};
+use thiserror::Error;
 
 use crate::parser::{Expr, ExprLeaf, Function, Program, StmtKind};
 
-#[derive(Debug, PartialEq)]
+type BoxStr = Box<String>;
+
+#[derive(Debug, Error)]
+pub(crate) enum RuntimeError {
+    #[error("unexpected token: {0:?}")]
+    VariableNotDeclared(BoxStr),
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Value {
     Unit,
     Int(i64),
     Float(f64),
+    Char(char),
     Bool(bool),
     Str(Box<String>),
 }
@@ -17,10 +27,11 @@ impl Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Unit => f.write_fmt(format_args!("unit")),
-            Self::Int(arg0) => f.write_fmt(format_args!("{}", arg0)),
-            Self::Float(arg0) => f.write_fmt(format_args!("{}", arg0)),
-            Self::Bool(arg0) => f.write_fmt(format_args!("{}", arg0)),
             Self::Str(arg0) => f.write_fmt(format_args!("{}", arg0)),
+            Self::Int(arg0) => f.write_fmt(format_args!("{}", arg0)),
+            Self::Bool(arg0) => f.write_fmt(format_args!("{}", arg0)),
+            Self::Char(arg0) => f.write_fmt(format_args!("{}", arg0)),
+            Self::Float(arg0) => f.write_fmt(format_args!("{}", arg0)),
         }
     }
 }
@@ -96,6 +107,7 @@ impl Environment {
     pub(crate) fn get_idx_of_func(&mut self, name: &str) -> Option<usize> {
         self.functions
             .iter()
+            .rev()
             .find_position(|func| *func.name == name)
             .map(|(idx, _)| idx)
     }
@@ -103,8 +115,16 @@ impl Environment {
     pub(crate) fn get_idx_of_var(&mut self, name: &str) -> Option<usize> {
         self.variables
             .iter()
+            .rev()
             .find_position(|var| &var.name == name)
             .map(|(idx, _)| idx)
+    }
+
+    pub(crate) fn get_val_of_var(&mut self, name: &str) -> Option<Value> {
+        if let Some(idx) = self.get_idx_of_var(name) {
+            return Some(self.variables[idx].value.clone());
+        }
+        None
     }
 }
 
@@ -174,14 +194,18 @@ impl Visitor for Interpreter {
                 let mut print_str = String::new();
                 for expr in exprs {
                     let val = expr.visit(self)?;
-                    write!(&mut print_str, "{}", val)?;
+                    write!(&mut print_str, "{} ", val)?;
                 }
                 println!("{}", &print_str);
                 ControlFlow::Nop
             }
             StmtKind::FuncCall(_) => todo!(),
             StmtKind::FuncReturn(_) => todo!(),
-            StmtKind::Assign { lhs, rhs } => todo!(),
+            StmtKind::Assign { lhs, rhs } => {
+                let val = rhs.visit(self)?;
+                self.environment.register_variable(lhs, val);
+                ControlFlow::Nop
+            }
             StmtKind::AssignFuncCall { lhs, rhs } => todo!(),
             StmtKind::IfCond {
                 condition,
@@ -200,18 +224,21 @@ impl Visitor for Interpreter {
             Expr::LogicalExpr { op, lhs, rhs } => todo!(),
             Expr::UnaryExpr { op, child } => todo!(),
             Expr::ExprLeaf(expr_leaf) => self.visit_expr_leaf(expr_leaf)?,
-            Expr::Ident(_) => todo!(),
+            Expr::Ident(ident) => {
+                let val = self.environment.get_val_of_var(&ident);
+                val.ok_or(RuntimeError::VariableNotDeclared(ident.clone()))?
+            }
         };
         Ok(val)
     }
 
     fn visit_expr_leaf(&mut self, expr_leaf: &mut ExprLeaf) -> Result<Value> {
         let val = match expr_leaf {
-            ExprLeaf::BoolTrue => todo!(),
-            ExprLeaf::BoolFalse => todo!(),
-            ExprLeaf::Int(_) => todo!(),
-            ExprLeaf::Float(_) => todo!(),
-            ExprLeaf::Char(_) => todo!(),
+            ExprLeaf::Char(ch) => Value::Char(*ch),
+            ExprLeaf::BoolTrue => Value::Bool(true),
+            ExprLeaf::BoolFalse => Value::Bool(false),
+            ExprLeaf::Int(int_val) => Value::Int(*int_val),
+            ExprLeaf::Float(float_val) => Value::Float(*float_val),
             ExprLeaf::Str(expr_string) => Value::Str(expr_string.clone()),
         };
         Ok(val)

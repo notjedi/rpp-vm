@@ -17,8 +17,8 @@ fn main() -> Result<()> {
     color_eyre::install()?;
     let program = r#"
         LAKSHMI START
-            !! AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 100;
-            DOT "Hello, world!";
+            AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 100;
+            DOT "printing ix =" ix "that was declared before";
         MAGIZHCHI
     "#;
 
