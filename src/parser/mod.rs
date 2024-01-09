@@ -42,6 +42,10 @@ pub(crate) enum StmtKind {
     Print(Vec<Expr>),
     FuncCall(String),
     FuncReturn(Expr),
+    Declare {
+        lhs: BoxStr,
+        rhs: BoxExpr,
+    },
     Assign {
         lhs: BoxStr,
         rhs: BoxExpr,
@@ -341,7 +345,7 @@ impl Parser {
                     .or_else(|_| self.expect(TokenKind::KeyWord(KeyWord::DeclareAlt)))?;
                 let expr = self.parse_expression(0)?;
                 self.expect(TokenKind::KeyWord(KeyWord::SemiColon))?;
-                StmtKind::Assign {
+                StmtKind::Declare {
                     lhs: Box::new(var),
                     rhs: Box::new(expr),
                 }
