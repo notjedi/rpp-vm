@@ -19,6 +19,8 @@ fn main() -> Result<()> {
         LAKSHMI START
             AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 100;
             DOT "printing ix =" ix "that was declared before";
+            ix BHAJJI SAAPDU ix+1;
+            DOT "printing ix =" ix "after it was updated";
         MAGIZHCHI
     "#;
 

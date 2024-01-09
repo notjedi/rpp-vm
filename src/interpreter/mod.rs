@@ -1,16 +1,21 @@
 use color_eyre::eyre::{eyre, Result};
 use itertools::Itertools;
-use std::fmt::{Debug, Display, Write};
+use std::{
+    fmt::{Debug, Display, Write},
+    ops::{Add, Div, Mul, Rem, Sub},
+};
 use thiserror::Error;
 
-use crate::parser::{Expr, ExprLeaf, Function, Program, StmtKind};
+use crate::parser::{BinaryOp, Expr, ExprLeaf, Function, Program, StmtKind};
 
 type BoxStr = Box<String>;
 
 #[derive(Debug, Error)]
 pub(crate) enum RuntimeError {
-    #[error("unexpected token: {0:?}")]
+    #[error("variable not declared: {0:?}")]
     VariableNotDeclared(BoxStr),
+    #[error("operations on {0} and {0} are not supported")]
+    TypeErro(Value, Value),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -35,6 +40,73 @@ impl Display for Value {
         }
     }
 }
+
+// TODO: replace unreachable with an error maybe? but without changing the output type to result
+macro_rules! impl_ops {
+    ($op_trait:ident, $op_fn:ident, $op:tt) => {
+        impl $op_trait<Value> for Value {
+            type Output = Value;
+
+            fn $op_fn(self, rhs: Value) -> Self::Output {
+                match (self, rhs) {
+                    (Value::Int(lhs), Value::Int(rhs)) => Value::Int(lhs $op rhs),
+                    (Value::Int(lhs), Value::Float(rhs)) => Value::Float(lhs as f64 $op rhs),
+                    (Value::Float(lhs), Value::Int(rhs)) => Value::Float(lhs $op rhs as f64),
+                    (Value::Float(lhs), Value::Float(rhs)) => Value::Float(lhs $op rhs),
+                    _ => unreachable!(),
+                }
+            }
+        }
+
+        impl $op_trait<&Value> for Value {
+            type Output = Value;
+
+            fn $op_fn(self, rhs: &Value) -> Self::Output {
+                match (self, rhs) {
+                    (Value::Int(lhs), Value::Int(rhs)) => Value::Int(lhs $op *rhs),
+                    (Value::Int(lhs), Value::Float(rhs)) => Value::Float(lhs as f64 $op *rhs),
+                    (Value::Float(lhs), Value::Int(rhs)) => Value::Float(lhs $op *rhs as f64),
+                    (Value::Float(lhs), Value::Float(rhs)) => Value::Float(lhs $op *rhs),
+                    _ => unreachable!(),
+                }
+            }
+        }
+
+        impl $op_trait<Value> for &Value {
+            type Output = Value;
+
+            fn $op_fn(self, rhs: Value) -> Self::Output {
+                match (self, rhs) {
+                    (Value::Int(lhs), Value::Int(rhs)) => Value::Int(*lhs $op rhs),
+                    (Value::Int(lhs), Value::Float(rhs)) => Value::Float(*lhs as f64 $op rhs),
+                    (Value::Float(lhs), Value::Int(rhs)) => Value::Float(*lhs $op rhs as f64),
+                    (Value::Float(lhs), Value::Float(rhs)) => Value::Float(*lhs $op rhs),
+                    _ => unreachable!(),
+                }
+            }
+        }
+
+        impl $op_trait<&Value> for &Value {
+            type Output = Value;
+
+            fn $op_fn(self, rhs: &Value) -> Self::Output {
+                match (self, rhs) {
+                    (Value::Int(lhs), Value::Int(rhs)) => Value::Int(*lhs $op *rhs),
+                    (Value::Int(lhs), Value::Float(rhs)) => Value::Float(*lhs as f64 $op *rhs),
+                    (Value::Float(lhs), Value::Int(rhs)) => Value::Float(*lhs $op *rhs as f64),
+                    (Value::Float(lhs), Value::Float(rhs)) => Value::Float(*lhs $op *rhs),
+                    _ => unreachable!(),
+                }
+            }
+        }
+    };
+}
+
+impl_ops!(Add, add, +);
+impl_ops!(Sub, sub, -);
+impl_ops!(Mul, mul, *);
+impl_ops!(Div, div, /);
+impl_ops!(Rem, rem, %);
 
 #[derive(Debug, PartialEq)]
 pub(crate) enum ControlFlow {
@@ -101,10 +173,11 @@ impl Environment {
             self.variables[idx].value = value;
             return Ok(());
         }
+        // RuntimeError::VariableNotDeclared(name.to_string().into())
         Err(eyre!("Cannot find variable with name {name}"))
     }
 
-    pub(crate) fn get_idx_of_func(&mut self, name: &str) -> Option<usize> {
+    fn get_idx_of_func(&mut self, name: &str) -> Option<usize> {
         self.functions
             .iter()
             .rev()
@@ -112,7 +185,7 @@ impl Environment {
             .map(|(idx, _)| idx)
     }
 
-    pub(crate) fn get_idx_of_var(&mut self, name: &str) -> Option<usize> {
+    fn get_idx_of_var(&mut self, name: &str) -> Option<usize> {
         self.variables
             .iter()
             .rev()
@@ -187,8 +260,11 @@ impl Visitor for Interpreter {
 
     fn visit_stmt(&mut self, stmt: &mut StmtKind) -> Result<ControlFlow> {
         let ctrl_flow = match stmt {
-            StmtKind::BreakLoop => todo!(),
-            StmtKind::Expr(_) => todo!(),
+            StmtKind::BreakLoop => ControlFlow::Break,
+            StmtKind::Expr(expr) => {
+                let val = expr.visit(self)?;
+                ControlFlow::Return(val)
+            }
             StmtKind::Comment(_) => ControlFlow::Nop,
             StmtKind::Print(exprs) => {
                 let mut print_str = String::new();
@@ -201,9 +277,14 @@ impl Visitor for Interpreter {
             }
             StmtKind::FuncCall(_) => todo!(),
             StmtKind::FuncReturn(_) => todo!(),
-            StmtKind::Assign { lhs, rhs } => {
+            StmtKind::Declare { lhs, rhs } => {
                 let val = rhs.visit(self)?;
                 self.environment.register_variable(lhs, val);
+                ControlFlow::Nop
+            }
+            StmtKind::Assign { lhs, rhs } => {
+                let val = rhs.visit(self)?;
+                self.environment.update_variable(lhs, val)?;
                 ControlFlow::Nop
             }
             StmtKind::AssignFuncCall { lhs, rhs } => todo!(),
@@ -220,13 +301,24 @@ impl Visitor for Interpreter {
 
     fn visit_expr(&mut self, expr: &mut Expr) -> Result<Value> {
         let val = match expr {
-            Expr::BinaryExpr { op, lhs, rhs } => todo!(),
+            Expr::BinaryExpr { op, lhs, rhs } => {
+                let lhs_val = lhs.visit(self)?;
+                let rhs_val = rhs.visit(self)?;
+                // TODO: assert rhs_val is not `0` when op is `Div`
+                match op {
+                    BinaryOp::Add => lhs_val + rhs_val,
+                    BinaryOp::Sub => lhs_val - rhs_val,
+                    BinaryOp::Mul => lhs_val * rhs_val,
+                    BinaryOp::Div => lhs_val / rhs_val,
+                    BinaryOp::Mod => lhs_val % rhs_val,
+                }
+            }
             Expr::LogicalExpr { op, lhs, rhs } => todo!(),
             Expr::UnaryExpr { op, child } => todo!(),
             Expr::ExprLeaf(expr_leaf) => self.visit_expr_leaf(expr_leaf)?,
             Expr::Ident(ident) => {
                 let val = self.environment.get_val_of_var(&ident);
-                val.ok_or(RuntimeError::VariableNotDeclared(ident.clone()))?
+                val.ok_or_else(|| RuntimeError::VariableNotDeclared(ident.clone()))?
             }
         };
         Ok(val)
