@@ -14,8 +14,14 @@ type BoxStr = Box<String>;
 pub(crate) enum RuntimeError {
     #[error("variable not declared: {0:?}")]
     VariableNotDeclared(BoxStr),
-    #[error("operations on {0} and {0} are not supported")]
-    TypeErro(Value, Value),
+    #[error("function not declared: {0:?}")]
+    FunctionNotDeclared(BoxStr),
+    #[error("operations on {0} and {1} are not supported")]
+    TypeError(Value, Value),
+    #[error("usage of `break` outside loop")]
+    BreakOutsideLoop,
+    #[error("division by zero")]
+    DivisionByZero,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -41,7 +47,6 @@ impl Display for Value {
     }
 }
 
-// TODO: replace unreachable with an error maybe? but without changing the output type to result
 macro_rules! impl_ops {
     ($op_trait:ident, $op_fn:ident, $op:tt) => {
         impl $op_trait<Value> for Value {
@@ -152,8 +157,11 @@ impl Environment {
     }
 
     pub(crate) fn end_scope(&mut self) {
-        // TODO: do not unwrap
-        let num_vars = self.variables.len() - self.scopes.pop().unwrap();
+        let num_vars = self.variables.len()
+            - self
+                .scopes
+                .pop()
+                .expect("calling end_scope without calling start_scope");
         (0..num_vars).for_each(|_| {
             self.variables.pop();
         });
@@ -173,8 +181,9 @@ impl Environment {
             self.variables[idx].value = value;
             return Ok(());
         }
-        // RuntimeError::VariableNotDeclared(name.to_string().into())
-        Err(eyre!("Cannot find variable with name {name}"))
+        Err(eyre!(RuntimeError::VariableNotDeclared(Box::new(
+            name.to_string()
+        ))))
     }
 
     fn get_idx_of_func(&mut self, name: &str) -> Option<usize> {
@@ -234,6 +243,16 @@ impl Interpreter {
             environment: Environment::new(),
         }
     }
+
+    fn check_if_compatible(lhs: &Value, rhs: &Value) -> Result<()> {
+        match (lhs, rhs) {
+            (Value::Int(_), Value::Int(_)) => Ok(()),
+            (Value::Int(_), Value::Float(_)) => Ok(()),
+            (Value::Float(_), Value::Int(_)) => Ok(()),
+            (Value::Float(_), Value::Float(_)) => Ok(()),
+            (lhs, rhs) => Err(eyre!(RuntimeError::TypeError(lhs.clone(), rhs.clone()))),
+        }
+    }
 }
 
 impl Visitor for Interpreter {
@@ -250,12 +269,14 @@ impl Visitor for Interpreter {
     fn visit_function(&mut self, func: &mut Function) -> Result<Value> {
         if let Some(idx) = self.environment.get_idx_of_func(&func.name) {
             self.environment.start_scope();
-            func.body.visit(self)?;
+            let res = func.body.visit(self)?;
             self.environment.end_scope();
-            // TODO: take care of return statements inside the function
-            return Ok(Value::Unit);
+            match res {
+                ControlFlow::Return(val) => return Ok(val),
+                _ => return Ok(Value::Unit),
+            }
         }
-        Err(eyre!("can't find function in scope"))
+        Err(eyre!(RuntimeError::FunctionNotDeclared(func.name.clone())))
     }
 
     fn visit_stmt(&mut self, stmt: &mut StmtKind) -> Result<ControlFlow> {
@@ -304,7 +325,12 @@ impl Visitor for Interpreter {
             Expr::BinaryExpr { op, lhs, rhs } => {
                 let lhs_val = lhs.visit(self)?;
                 let rhs_val = rhs.visit(self)?;
-                // TODO: assert rhs_val is not `0` when op is `Div`
+                Self::check_if_compatible(&lhs_val, &rhs_val)?;
+                if *op == BinaryOp::Div {
+                    if let Value::Int(0) | Value::Float(0.0) = rhs_val {
+                        return Err(eyre!(RuntimeError::DivisionByZero));
+                    }
+                }
                 match op {
                     BinaryOp::Add => lhs_val + rhs_val,
                     BinaryOp::Sub => lhs_val - rhs_val,
@@ -378,9 +404,11 @@ impl Visitable<()> for Program {
             v.register_function(function)?;
         }
         for stmt in self.main_stmts.iter_mut() {
-            // TODO: take care of break stmts, it shouldn't reach here. it should be caught before
-            // it reaches here.
-            stmt.visit(v)?;
+            let stmt_ret = stmt.visit(v)?;
+            // NOTE: `break` statements should not reach here, it should be caught inside a loop
+            if stmt_ret == ControlFlow::Break {
+                return Err(eyre!(RuntimeError::BreakOutsideLoop));
+            }
         }
         Ok(())
     }

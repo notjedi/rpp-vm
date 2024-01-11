@@ -70,7 +70,7 @@ pub(crate) enum StmtKind {
     },
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) enum BinaryOp {
     Add,
     Sub,
@@ -93,7 +93,7 @@ impl BinaryOp {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) enum LogicalOp {
     GreaterThan,
     LessThan,
