@@ -30,6 +30,11 @@ fn main() -> Result<()> {
             DOT "is ix != 10 = " ix != 10;
             DOT "is ix == True = " ix == True;
             DOT "is ix == 101.0 = " ix == 101.0;
+
+            !! DOT "-ix is" -ix; = parses as a sub op b/w string and int
+            DOT -ix;
+            DOT +ix;
+
             DOT "printing ix =" ix;
         MAGIZHCHI
     "#;

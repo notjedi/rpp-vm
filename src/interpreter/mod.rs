@@ -23,6 +23,8 @@ pub(crate) enum RuntimeError {
     BreakOutsideLoop,
     #[error("division by zero")]
     DivisionByZero,
+    #[error("bad operand for unary op {0:?}")]
+    BadOperandforUnaryOp(BinaryOp),
 }
 
 #[derive(Clone, Debug)]
@@ -347,7 +349,6 @@ impl Visitor for Interpreter {
         Ok(ctrl_flow)
     }
 
-    #[allow(unused_variables)]
     fn visit_expr(&mut self, expr: &mut Expr) -> Result<Value> {
         let val = match expr {
             Expr::BinaryExpr { op, lhs, rhs } => {
@@ -381,7 +382,17 @@ impl Visitor for Interpreter {
                 Value::Bool(val)
             }
 
-            Expr::UnaryExpr { op, child } => todo!(),
+            Expr::UnaryExpr { op, child } => {
+                let val = child.visit(self)?;
+                match op {
+                    BinaryOp::Add => val,
+                    BinaryOp::Sub => match val {
+                        Value::Int(_) | Value::Float(_) => Value::Int(0) - val,
+                        _ => return Err(eyre!(RuntimeError::BadOperandforUnaryOp(op.clone()))),
+                    },
+                    _ => return Err(eyre!(RuntimeError::BadOperandforUnaryOp(op.clone()))),
+                }
+            }
             Expr::ExprLeaf(expr_leaf) => self.visit_expr_leaf(expr_leaf)?,
             Expr::Ident(ident) => {
                 let val = self.environment.get_val_of_var(&ident);
