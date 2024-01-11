@@ -51,8 +51,8 @@ pub(crate) enum StmtKind {
         rhs: BoxExpr,
     },
     AssignFuncCall {
-        lhs: BoxStr,
-        rhs: BoxStr,
+        var_name: BoxStr,
+        func_name: BoxStr,
     },
     IfCond {
         condition: BoxExpr,
@@ -493,8 +493,8 @@ impl Parser {
                         if let TokenKind::Ident(func_name) = next_tok {
                             self.expect(TokenKind::KeyWord(KeyWord::SemiColon))?;
                             StmtKind::AssignFuncCall {
-                                lhs: Box::new(ident),
-                                rhs: Box::new(func_name),
+                                var_name: Box::new(ident),
+                                func_name: Box::new(func_name),
                             }
                         } else {
                             return Err(Self::missing_expected_token(

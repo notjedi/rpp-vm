@@ -23,8 +23,8 @@ pub(crate) enum RuntimeError {
     BreakOutsideLoop,
     #[error("division by zero")]
     DivisionByZero,
-    #[error("bad operand for unary op {0:?}")]
-    BadOperandforUnaryOp(BinaryOp),
+    #[error("bad operand for unary op: {0}")]
+    BadOperandforUnaryOp(Value),
 }
 
 #[derive(Clone, Debug)]
@@ -202,7 +202,7 @@ impl Environment {
         });
     }
 
-    pub(crate) fn register_function(&mut self, func: &mut Function) {
+    pub(crate) fn register_function(&mut self, func: &Function) {
         self.functions.push(func.clone())
     }
 
@@ -243,20 +243,27 @@ impl Environment {
         }
         None
     }
+
+    fn get_func(&mut self, name: &str) -> Option<&Function> {
+        if let Some(idx) = self.get_idx_of_func(name) {
+            return Some(&mut self.functions[idx]);
+        }
+        None
+    }
 }
 
 pub(crate) trait Visitor {
-    fn register_function(&mut self, func: &mut Function) -> Result<()>;
+    fn register_function(&mut self, func: &Function) -> Result<()>;
 
     fn register_variable(&mut self, name: &str, value: Value) -> Result<()>;
 
-    fn visit_function(&mut self, func: &mut Function) -> Result<Value>;
+    fn visit_function(&mut self, func: &Function) -> Result<Value>;
 
-    fn visit_stmt(&mut self, stmt: &mut StmtKind) -> Result<ControlFlow>;
+    fn visit_stmt(&mut self, stmt: &StmtKind) -> Result<ControlFlow>;
 
-    fn visit_expr(&mut self, expr: &mut Expr) -> Result<Value>;
+    fn visit_expr(&mut self, expr: &Expr) -> Result<Value>;
 
-    fn visit_expr_leaf(&mut self, expr_leaf: &mut ExprLeaf) -> Result<Value>;
+    fn visit_expr_leaf(&mut self, expr_leaf: &ExprLeaf) -> Result<Value>;
 }
 
 #[derive(Debug)]
@@ -283,7 +290,7 @@ impl Interpreter {
 }
 
 impl Visitor for Interpreter {
-    fn register_function(&mut self, func: &mut Function) -> Result<()> {
+    fn register_function(&mut self, func: &Function) -> Result<()> {
         self.environment.register_function(func);
         Ok(())
     }
@@ -293,7 +300,7 @@ impl Visitor for Interpreter {
         Ok(())
     }
 
-    fn visit_function(&mut self, func: &mut Function) -> Result<Value> {
+    fn visit_function(&mut self, func: &Function) -> Result<Value> {
         if let Some(_) = self.environment.get_idx_of_func(&func.name) {
             self.environment.start_scope();
             let res = func.body.visit(self)?;
@@ -307,7 +314,7 @@ impl Visitor for Interpreter {
     }
 
     #[allow(unused_variables)]
-    fn visit_stmt(&mut self, stmt: &mut StmtKind) -> Result<ControlFlow> {
+    fn visit_stmt(&mut self, stmt: &StmtKind) -> Result<ControlFlow> {
         let ctrl_flow = match stmt {
             StmtKind::BreakLoop => ControlFlow::Break,
             StmtKind::Expr(expr) => {
@@ -316,16 +323,23 @@ impl Visitor for Interpreter {
             }
             StmtKind::Comment(_) => ControlFlow::Nop,
             StmtKind::Print(exprs) => {
-                // TODO: support `\n` in strings
                 let mut print_str = String::new();
                 for expr in exprs {
                     let val = expr.visit(self)?;
                     write!(&mut print_str, "{} ", val)?;
                 }
-                println!("{}", &print_str);
+                // NOTE: prints \n as new line instead of raw \n literal
+                println!("{}", &print_str.replace("\\n", "\n"));
                 ControlFlow::Nop
             }
-            StmtKind::FuncCall(_) => todo!(),
+            StmtKind::FuncCall(func_name) => {
+                // TODO: check
+                if let Some(func) = self.environment.get_func(func_name) {
+                    // TODO: any other way than cloning?
+                    func.clone().visit(self)?;
+                }
+                ControlFlow::Nop
+            }
             StmtKind::FuncReturn(_) => todo!(),
             StmtKind::Declare { lhs, rhs } => {
                 let val = rhs.visit(self)?;
@@ -337,19 +351,43 @@ impl Visitor for Interpreter {
                 self.environment.update_variable(lhs, val)?;
                 ControlFlow::Nop
             }
-            StmtKind::AssignFuncCall { lhs, rhs } => todo!(),
+            StmtKind::AssignFuncCall {
+                var_name,
+                func_name,
+            } => {
+                // TODO: check
+                if let Some(func) = self.environment.get_func(func_name) {
+                    // TODO: any other way than cloning?
+                    let res = func.clone().visit(self)?;
+                    // TODO: check if var is already availabe and update it?
+                    self.environment.register_variable(var_name, res);
+                }
+                ControlFlow::Nop
+            }
             StmtKind::IfCond {
                 condition,
                 body,
                 else_body,
-            } => todo!(),
+            } => {
+                // TODO: check
+                let res = condition.visit(self)?;
+                // TODO: take care of return statements here, func might return value conditionally
+                if let Value::Bool(val) = res {
+                    match val {
+                        true => body.visit(self)?,
+                        false => else_body.visit(self)?,
+                    }
+                } else {
+                    ControlFlow::Nop
+                }
+            }
             StmtKind::ForLoop { start, end, body } => todo!(),
             StmtKind::WhileLoop { condition, body } => todo!(),
         };
         Ok(ctrl_flow)
     }
 
-    fn visit_expr(&mut self, expr: &mut Expr) -> Result<Value> {
+    fn visit_expr(&mut self, expr: &Expr) -> Result<Value> {
         let val = match expr {
             Expr::BinaryExpr { op, lhs, rhs } => {
                 let lhs_val = lhs.visit(self)?;
@@ -388,9 +426,10 @@ impl Visitor for Interpreter {
                     BinaryOp::Add => val,
                     BinaryOp::Sub => match val {
                         Value::Int(_) | Value::Float(_) => Value::Int(0) - val,
-                        _ => return Err(eyre!(RuntimeError::BadOperandforUnaryOp(op.clone()))),
+                        _ => return Err(eyre!(RuntimeError::BadOperandforUnaryOp(val.clone()))),
                     },
-                    _ => return Err(eyre!(RuntimeError::BadOperandforUnaryOp(op.clone()))),
+                    // would error in parse stage itself
+                    _ => unreachable!(),
                 }
             }
             Expr::ExprLeaf(expr_leaf) => self.visit_expr_leaf(expr_leaf)?,
@@ -402,7 +441,7 @@ impl Visitor for Interpreter {
         Ok(val)
     }
 
-    fn visit_expr_leaf(&mut self, expr_leaf: &mut ExprLeaf) -> Result<Value> {
+    fn visit_expr_leaf(&mut self, expr_leaf: &ExprLeaf) -> Result<Value> {
         let val = match expr_leaf {
             ExprLeaf::Char(ch) => Value::Char(*ch),
             ExprLeaf::BoolTrue => Value::Bool(true),
@@ -416,11 +455,11 @@ impl Visitor for Interpreter {
 }
 
 pub(crate) trait Visitable<T> {
-    fn visit(&mut self, v: &mut dyn Visitor) -> Result<T>;
+    fn visit(&self, v: &mut dyn Visitor) -> Result<T>;
 }
 
 impl<T: Visitable<()>> Visitable<()> for Vec<T> {
-    fn visit(&mut self, v: &mut dyn Visitor) -> Result<()> {
+    fn visit(&self, v: &mut dyn Visitor) -> Result<()> {
         for elem in self {
             elem.visit(v)?;
         }
@@ -429,7 +468,7 @@ impl<T: Visitable<()>> Visitable<()> for Vec<T> {
 }
 
 impl<T: Visitable<ControlFlow>> Visitable<ControlFlow> for Vec<T> {
-    fn visit(&mut self, v: &mut dyn Visitor) -> Result<ControlFlow> {
+    fn visit(&self, v: &mut dyn Visitor) -> Result<ControlFlow> {
         let mut res = ControlFlow::Nop;
         for elem in self {
             res = elem.visit(v)?;
@@ -445,17 +484,17 @@ impl<T: Visitable<ControlFlow>> Visitable<ControlFlow> for Vec<T> {
 }
 
 impl Visitable<Value> for Function {
-    fn visit(&mut self, v: &mut dyn Visitor) -> Result<Value> {
+    fn visit(&self, v: &mut dyn Visitor) -> Result<Value> {
         v.visit_function(self)
     }
 }
 
 impl Visitable<()> for Program {
-    fn visit(&mut self, v: &mut dyn Visitor) -> Result<()> {
-        for function in &mut self.functions {
+    fn visit(&self, v: &mut dyn Visitor) -> Result<()> {
+        for function in &self.functions {
             v.register_function(function)?;
         }
-        for stmt in self.main_stmts.iter_mut() {
+        for stmt in self.main_stmts.iter() {
             let stmt_ret = stmt.visit(v)?;
             // NOTE: `break` statements should not reach here, it should be caught inside a loop
             if stmt_ret == ControlFlow::Break {
@@ -467,19 +506,19 @@ impl Visitable<()> for Program {
 }
 
 impl Visitable<ControlFlow> for StmtKind {
-    fn visit(&mut self, v: &mut dyn Visitor) -> Result<ControlFlow> {
+    fn visit(&self, v: &mut dyn Visitor) -> Result<ControlFlow> {
         v.visit_stmt(self)
     }
 }
 
 impl Visitable<Value> for Expr {
-    fn visit(&mut self, v: &mut dyn Visitor) -> Result<Value> {
+    fn visit(&self, v: &mut dyn Visitor) -> Result<Value> {
         v.visit_expr(self)
     }
 }
 
 impl Visitable<Value> for ExprLeaf {
-    fn visit(&mut self, v: &mut dyn Visitor) -> Result<Value> {
+    fn visit(&self, v: &mut dyn Visitor) -> Result<Value> {
         v.visit_expr_leaf(self)
     }
 }

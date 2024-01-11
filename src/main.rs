@@ -28,8 +28,8 @@ fn main() -> Result<()> {
             DOT "is ix >= 10 = " ix >= 10;
             DOT "is ix == 10 = " ix == 10;
             DOT "is ix != 10 = " ix != 10;
-            DOT "is ix == True = " ix == True;
-            DOT "is ix == 101.0 = " ix == 101.0;
+            DOT "\nis ix == True = " ix == True;
+            DOT "is ix == 101.0 = " ix == 101.0 "\n";
 
             !! DOT "-ix is" -ix; = parses as a sub op b/w string and int
             DOT -ix;
@@ -41,7 +41,7 @@ fn main() -> Result<()> {
 
     let tokens = Lexer::tokenize_str(program)?;
     let mut parser = Parser::new(tokens);
-    let mut ast = parser.parse()?;
+    let ast = parser.parse()?;
     let mut interpreter = Interpreter::new();
     ast.visit(&mut interpreter)?;
     Ok(())
