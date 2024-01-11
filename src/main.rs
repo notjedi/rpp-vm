@@ -22,6 +22,15 @@ fn main() -> Result<()> {
             DOT "printing ix =" ix "that was declared before";
             ix BHAJJI SAAPDU ix+1;
             DOT "printing ix =" ix "after it was updated";
+            DOT "is ix > 10 = " ix > 10;
+            DOT "is ix < 10 = " ix < 10;
+            DOT "is ix <= 10 = " ix <= 10;
+            DOT "is ix >= 10 = " ix >= 10;
+            DOT "is ix == 10 = " ix == 10;
+            DOT "is ix != 10 = " ix != 10;
+            DOT "is ix == True = " ix == True;
+            DOT "is ix == 101.0 = " ix == 101.0;
+            DOT "printing ix =" ix;
         MAGIZHCHI
     "#;
 

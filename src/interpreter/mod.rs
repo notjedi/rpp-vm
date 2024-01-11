@@ -1,12 +1,13 @@
 use color_eyre::eyre::{eyre, Result};
 use itertools::Itertools;
 use std::{
+    cmp::Ordering,
     fmt::{Debug, Display, Write},
     ops::{Add, Div, Mul, Rem, Sub},
 };
 use thiserror::Error;
 
-use crate::parser::{BinaryOp, Expr, ExprLeaf, Function, Program, StmtKind};
+use crate::parser::{BinaryOp, Expr, ExprLeaf, Function, LogicalOp, Program, StmtKind};
 
 type BoxStr = Box<String>;
 
@@ -24,7 +25,7 @@ pub(crate) enum RuntimeError {
     DivisionByZero,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub(crate) enum Value {
     Unit,
     Int(i64),
@@ -47,7 +48,39 @@ impl Display for Value {
     }
 }
 
-macro_rules! impl_ops {
+impl PartialOrd for Value {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match (self, other) {
+            (Value::Unit, Value::Unit) => Some(Ordering::Equal),
+            (Value::Int(lhs), Value::Int(rhs)) => lhs.partial_cmp(rhs),
+            (Value::Float(lhs), Value::Float(rhs)) => lhs.partial_cmp(rhs),
+            (Value::Char(lhs), Value::Char(rhs)) => lhs.partial_cmp(rhs),
+            (Value::Bool(lhs), Value::Bool(rhs)) => lhs.partial_cmp(rhs),
+            // (Value::Str(lhs), Value::Str(rhs)) => lhs.partial_cmp(rhs),
+            (Value::Int(lhs), Value::Float(rhs)) => (*lhs as f64).partial_cmp(rhs),
+            (Value::Float(lhs), Value::Int(rhs)) => lhs.partial_cmp(&(*rhs as f64)),
+            _ => None,
+        }
+    }
+}
+
+impl PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Value::Unit, Value::Unit) => true,
+            (Value::Int(lhs), Value::Int(rhs)) => lhs == rhs,
+            (Value::Float(lhs), Value::Float(rhs)) => lhs == rhs,
+            (Value::Char(lhs), Value::Char(rhs)) => lhs == rhs,
+            (Value::Bool(lhs), Value::Bool(rhs)) => lhs == rhs,
+            (Value::Str(lhs), Value::Str(rhs)) => lhs == rhs,
+            (Value::Int(lhs), Value::Float(rhs)) => &(*lhs as f64) == rhs,
+            (Value::Float(lhs), Value::Int(rhs)) => lhs == &(*rhs as f64),
+            _ => false,
+        }
+    }
+}
+
+macro_rules! impl_bin_ops {
     ($op_trait:ident, $op_fn:ident, $op:tt) => {
         impl $op_trait<Value> for Value {
             type Output = Value;
@@ -107,11 +140,11 @@ macro_rules! impl_ops {
     };
 }
 
-impl_ops!(Add, add, +);
-impl_ops!(Sub, sub, -);
-impl_ops!(Mul, mul, *);
-impl_ops!(Div, div, /);
-impl_ops!(Rem, rem, %);
+impl_bin_ops!(Add, add, +);
+impl_bin_ops!(Sub, sub, -);
+impl_bin_ops!(Mul, mul, *);
+impl_bin_ops!(Div, div, /);
+impl_bin_ops!(Rem, rem, %);
 
 #[derive(Debug, PartialEq)]
 pub(crate) enum ControlFlow {
@@ -281,6 +314,7 @@ impl Visitor for Interpreter {
             }
             StmtKind::Comment(_) => ControlFlow::Nop,
             StmtKind::Print(exprs) => {
+                // TODO: support `\n` in strings
                 let mut print_str = String::new();
                 for expr in exprs {
                     let val = expr.visit(self)?;
@@ -333,7 +367,20 @@ impl Visitor for Interpreter {
                     BinaryOp::Mod => lhs_val % rhs_val,
                 }
             }
-            Expr::LogicalExpr { op, lhs, rhs } => todo!(),
+            Expr::LogicalExpr { op, lhs, rhs } => {
+                let lhs_val = lhs.visit(self)?;
+                let rhs_val = rhs.visit(self)?;
+                let val = match op {
+                    LogicalOp::GreaterThan => lhs_val > rhs_val,
+                    LogicalOp::LessThan => lhs_val < rhs_val,
+                    LogicalOp::GreaterThanEqual => lhs_val >= rhs_val,
+                    LogicalOp::LessThanEqual => lhs_val <= rhs_val,
+                    LogicalOp::Equal => lhs_val == rhs_val,
+                    LogicalOp::NotEqual => lhs_val != rhs_val,
+                };
+                Value::Bool(val)
+            }
+
             Expr::UnaryExpr { op, child } => todo!(),
             Expr::ExprLeaf(expr_leaf) => self.visit_expr_leaf(expr_leaf)?,
             Expr::Ident(ident) => {
