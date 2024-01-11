@@ -2,7 +2,7 @@ mod tokens;
 use color_eyre::eyre::Result;
 pub(crate) use tokens::{KeyWord, Literal, Span, Token, TokenKind};
 
-use std::{collections::VecDeque, i64, iter::Peekable, str::Chars};
+use std::{i64, iter::Peekable, str::Chars};
 use thiserror::Error;
 
 #[derive(Clone, Debug, Error)]
@@ -366,7 +366,10 @@ impl<'a> Lexer<'a> {
     }
 
     // https://github.com/tjdevries/vim9jit/blob/9a530e1f0f346f86784eef8ff7026849b1b9ed64/crates/vim9-lexer/src/lib.rs#L1039
+    #[cfg(test)]
     pub(crate) fn snapshot_lexing(input: &'a str) -> LResult<String> {
+        use std::collections::VecDeque;
+
         let mut lexer = Self::new(input);
         let tokens = lexer.tokensize()?;
         let mut tokens = VecDeque::from(tokens);

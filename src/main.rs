@@ -2,6 +2,7 @@
 #![feature(inline_const_pat)]
 #![allow(incomplete_features)]
 #![allow(clippy::enum_variant_names)]
+#![allow(illegal_floating_point_literal_pattern)]
 
 mod interpreter;
 mod lexer;

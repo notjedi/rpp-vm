@@ -211,21 +211,13 @@ impl Environment {
 }
 
 pub(crate) trait Visitor {
-    fn register_function(&mut self, func: &mut Function) -> Result<()> {
-        Ok(())
-    }
+    fn register_function(&mut self, func: &mut Function) -> Result<()>;
 
-    fn register_variable(&mut self, name: &str, value: Value) -> Result<()> {
-        Ok(())
-    }
+    fn register_variable(&mut self, name: &str, value: Value) -> Result<()>;
 
-    fn visit_function(&mut self, func: &mut Function) -> Result<Value> {
-        Ok(Value::Unit)
-    }
+    fn visit_function(&mut self, func: &mut Function) -> Result<Value>;
 
-    fn visit_stmt(&mut self, stmt: &mut StmtKind) -> Result<ControlFlow> {
-        Ok(ControlFlow::Nop)
-    }
+    fn visit_stmt(&mut self, stmt: &mut StmtKind) -> Result<ControlFlow>;
 
     fn visit_expr(&mut self, expr: &mut Expr) -> Result<Value>;
 
@@ -267,7 +259,7 @@ impl Visitor for Interpreter {
     }
 
     fn visit_function(&mut self, func: &mut Function) -> Result<Value> {
-        if let Some(idx) = self.environment.get_idx_of_func(&func.name) {
+        if let Some(_) = self.environment.get_idx_of_func(&func.name) {
             self.environment.start_scope();
             let res = func.body.visit(self)?;
             self.environment.end_scope();
@@ -279,6 +271,7 @@ impl Visitor for Interpreter {
         Err(eyre!(RuntimeError::FunctionNotDeclared(func.name.clone())))
     }
 
+    #[allow(unused_variables)]
     fn visit_stmt(&mut self, stmt: &mut StmtKind) -> Result<ControlFlow> {
         let ctrl_flow = match stmt {
             StmtKind::BreakLoop => ControlFlow::Break,
@@ -320,6 +313,7 @@ impl Visitor for Interpreter {
         Ok(ctrl_flow)
     }
 
+    #[allow(unused_variables)]
     fn visit_expr(&mut self, expr: &mut Expr) -> Result<Value> {
         let val = match expr {
             Expr::BinaryExpr { op, lhs, rhs } => {
