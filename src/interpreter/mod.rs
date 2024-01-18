@@ -2,6 +2,7 @@ use color_eyre::eyre::{eyre, Result};
 use itertools::Itertools;
 use std::{
     cmp::Ordering,
+    collections::HashMap,
     fmt::{Debug, Display, Write},
     ops::{Add, Div, Mul, Rem, Sub},
 };
@@ -157,16 +158,14 @@ pub(crate) enum ControlFlow {
 }
 
 #[derive(Debug)]
-pub(crate) struct Variable {
-    name: String,
-    value: Value,
+pub(crate) struct Scope {
+    variables: HashMap<String, Value>,
 }
 
-impl Variable {
-    fn new(name: &str, value: Value) -> Self {
+impl Scope {
+    pub(crate) fn new() -> Self {
         Self {
-            name: name.to_string(),
-            value,
+            variables: HashMap::new(),
         }
     }
 }
@@ -174,51 +173,15 @@ impl Variable {
 #[derive(Debug)]
 pub(crate) struct Environment {
     functions: Vec<Function>,
-    variables: Vec<Variable>,
-    scopes: Vec<usize>,
+    scopes: Vec<Scope>,
 }
 
 impl Environment {
     pub(crate) fn new() -> Self {
         Self {
             functions: vec![],
-            variables: vec![],
-            scopes: vec![],
+            scopes: vec![Scope::new()],
         }
-    }
-
-    pub(crate) fn start_scope(&mut self) {
-        self.scopes.push(self.variables.len())
-    }
-
-    pub(crate) fn end_scope(&mut self) {
-        let num_vars = self.variables.len()
-            - self
-                .scopes
-                .pop()
-                .expect("calling end_scope without calling start_scope");
-        (0..num_vars).for_each(|_| {
-            self.variables.pop();
-        });
-    }
-
-    pub(crate) fn register_function(&mut self, func: &Function) {
-        self.functions.push(func.clone())
-    }
-
-    pub(crate) fn register_variable(&mut self, name: &str, value: Value) {
-        let var = Variable::new(name, value);
-        self.variables.push(var);
-    }
-
-    pub(crate) fn update_variable(&mut self, name: &str, value: Value) -> Result<()> {
-        if let Some(idx) = self.get_idx_of_var(name) {
-            self.variables[idx].value = value;
-            return Ok(());
-        }
-        Err(eyre!(RuntimeError::VariableNotDeclared(Box::new(
-            name.to_string()
-        ))))
     }
 
     fn get_idx_of_func(&mut self, name: &str) -> Option<usize> {
@@ -229,24 +192,52 @@ impl Environment {
             .map(|(idx, _)| idx)
     }
 
-    fn get_idx_of_var(&mut self, name: &str) -> Option<usize> {
-        self.variables
-            .iter()
-            .rev()
-            .find_position(|var| &var.name == name)
-            .map(|(idx, _)| idx)
-    }
-
-    pub(crate) fn get_val_of_var(&mut self, name: &str) -> Option<Value> {
-        if let Some(idx) = self.get_idx_of_var(name) {
-            return Some(self.variables[idx].value.clone());
+    fn get_func(&mut self, name: &str) -> Option<&Function> {
+        if let Some(idx) = self.get_idx_of_func(name) {
+            return Some(&mut self.functions[idx]);
         }
         None
     }
 
-    fn get_func(&mut self, name: &str) -> Option<&Function> {
-        if let Some(idx) = self.get_idx_of_func(name) {
-            return Some(&mut self.functions[idx]);
+    pub(crate) fn start_scope(&mut self) {
+        self.scopes.push(Scope::new())
+    }
+
+    pub(crate) fn end_scope(&mut self) {
+        self.scopes.pop();
+    }
+
+    pub(crate) fn register_function(&mut self, func: &Function) {
+        self.functions.push(func.clone())
+    }
+
+    pub(crate) fn register_variable(&mut self, name: &str, value: Value) {
+        self.scopes
+            .last_mut()
+            .unwrap()
+            .variables
+            .insert(name.to_string(), value);
+    }
+
+    pub(crate) fn update_variable(&mut self, name: &str, value: Value) -> Result<()> {
+        for scope in self.scopes.iter_mut().rev() {
+            if let Some(_) = scope.variables.get(name) {
+                scope.variables.get_mut(name).map(|val| {
+                    *val = value;
+                });
+                return Ok(());
+            }
+        }
+        Err(eyre!(RuntimeError::VariableNotDeclared(Box::new(
+            name.to_string()
+        ))))
+    }
+
+    pub(crate) fn get_val_of_var(&mut self, name: &str) -> Option<Value> {
+        for scope in self.scopes.iter().rev() {
+            if let Some(val) = scope.variables.get(name) {
+                return Some(val.clone());
+            }
         }
         None
     }
