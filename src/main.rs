@@ -17,6 +17,12 @@ use interpreter::{Interpreter, Visitable};
 fn main() -> Result<()> {
     color_eyre::install()?;
     let program = r#"
+        EN VAZHI THANI VAZHI myfunc_one
+            AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 100;
+            DOT "returning ix =" ix "to main";
+            IDHU EPDI IRUKKU ix;
+        MARAKKADHINGA
+
         LAKSHMI START
             AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 100;
             DOT "printing ix =" ix "that was declared before";
@@ -44,16 +50,23 @@ fn main() -> Result<()> {
             }KATHAM KATHAM;
             DOT;
 
-            AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 1;
+            AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 0;
             BABA COUNTING STARTS True {
-                DOT ix;
                 EN PEAR MANICKAM ix >= 5 {
                     DOT "breaking out of loop...";
                     BLACK SHEEP;
+                } ENAKKU INNURU PEAR IRUKKU{
+                    DOT ix;
                 }KATHAM KATHAM;
                 ix BHAJJI SAAPDU ix + 1;
             }KATHAM KATHAM;
 
+            DOT;
+            y CHUMMA ADHURUDHULA myfunc_one;
+            DOT y;
+
+            DOT;
+            CHUMMA ADHURUDHULA myfunc_one;
         MAGIZHCHI
     "#;
 

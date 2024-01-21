@@ -610,7 +610,7 @@ impl Parser {
 mod tests {
     use super::Parser;
     use crate::lexer::Lexer;
-    use color_eyre::eyre::{eyre, Result};
+    use color_eyre::eyre::Result;
 
     #[test]
     fn test_parser() -> Result<()> {

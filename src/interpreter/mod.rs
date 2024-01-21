@@ -35,6 +35,7 @@ pub(crate) enum Value {
     Float(f64),
     Char(char),
     Bool(bool),
+    #[allow(clippy::box_collection)]
     Str(Box<String>),
 }
 
@@ -184,7 +185,7 @@ impl Environment {
         }
     }
 
-    fn get_idx_of_func(&mut self, name: &str) -> Option<usize> {
+    fn get_idx_of_func(&self, name: &str) -> Option<usize> {
         self.functions
             .iter()
             .rev()
@@ -192,9 +193,9 @@ impl Environment {
             .map(|(idx, _)| idx)
     }
 
-    fn get_func(&mut self, name: &str) -> Option<&Function> {
+    fn get_func(&self, name: &str) -> Option<&Function> {
         if let Some(idx) = self.get_idx_of_func(name) {
-            return Some(&mut self.functions[idx]);
+            return Some(&self.functions[idx]);
         }
         None
     }
@@ -221,10 +222,8 @@ impl Environment {
 
     pub(crate) fn update_variable(&mut self, name: &str, value: Value) -> Result<()> {
         for scope in self.scopes.iter_mut().rev() {
-            if let Some(_) = scope.variables.get(name) {
-                scope.variables.get_mut(name).map(|val| {
-                    *val = value;
-                });
+            if let Some(val) = scope.variables.get_mut(name) {
+                *val = value;
                 return Ok(());
             }
         }
@@ -292,7 +291,7 @@ impl Visitor for Interpreter {
     }
 
     fn visit_function(&mut self, func: &Function) -> Result<Value> {
-        if let Some(_) = self.environment.get_idx_of_func(&func.name) {
+        if self.environment.get_idx_of_func(&func.name).is_some() {
             self.environment.start_scope();
             let res = func.body.visit(self)?;
             self.environment.end_scope();
@@ -323,7 +322,6 @@ impl Visitor for Interpreter {
                 ControlFlow::Nop
             }
             StmtKind::FuncCall(func_name) => {
-                // TODO: check
                 if let Some(func) = self.environment.get_func(func_name) {
                     // TODO: any other way than cloning?
                     func.clone().visit(self)?;
@@ -331,7 +329,6 @@ impl Visitor for Interpreter {
                 ControlFlow::Nop
             }
             StmtKind::FuncReturn(expr) => {
-                // TODO: check
                 let ret_val = expr.visit(self)?;
                 ControlFlow::Return(ret_val)
             }
@@ -349,11 +346,9 @@ impl Visitor for Interpreter {
                 var_name,
                 func_name,
             } => {
-                // TODO: check
                 if let Some(func) = self.environment.get_func(func_name) {
                     // TODO: any other way than cloning?
                     let res = func.clone().visit(self)?;
-                    // TODO: check if var is already availabe and update it?
                     self.environment.register_variable(var_name, res);
                 }
                 ControlFlow::Nop
@@ -363,9 +358,7 @@ impl Visitor for Interpreter {
                 body,
                 else_body,
             } => {
-                // TODO: check
                 let res = condition.visit(self)?;
-                // TODO: take care of return statements here, func might return value conditionally
                 if let Value::Bool(val) = res {
                     match val {
                         true => body.visit(self)?,
@@ -453,7 +446,7 @@ impl Visitor for Interpreter {
             }
             Expr::ExprLeaf(expr_leaf) => self.visit_expr_leaf(expr_leaf)?,
             Expr::Ident(ident) => {
-                let val = self.environment.get_val_of_var(&ident);
+                let val = self.environment.get_val_of_var(ident);
                 val.ok_or_else(|| RuntimeError::VariableNotDeclared(ident.clone()))?
             }
         };
