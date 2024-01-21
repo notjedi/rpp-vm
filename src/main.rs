@@ -36,6 +36,24 @@ fn main() -> Result<()> {
             DOT +ix;
 
             DOT "printing ix =" ix;
+            DOT;
+
+            AANDAVAN SOLLRAN range ARUNACHALAM SEIYARAN 5;
+            NAA 0 THADAVA SONNA range THADAVA SONNA MADHRI {
+                DOT "FizzBuzz";
+            }KATHAM KATHAM;
+            DOT;
+
+            AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 1;
+            BABA COUNTING STARTS True {
+                DOT ix;
+                EN PEAR MANICKAM ix >= 5 {
+                    DOT "breaking out of loop...";
+                    BLACK SHEEP;
+                }KATHAM KATHAM;
+                ix BHAJJI SAAPDU ix + 1;
+            }KATHAM KATHAM;
+
         MAGIZHCHI
     "#;
 

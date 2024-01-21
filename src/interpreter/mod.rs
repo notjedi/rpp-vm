@@ -233,7 +233,7 @@ impl Environment {
         ))))
     }
 
-    pub(crate) fn get_val_of_var(&mut self, name: &str) -> Option<Value> {
+    pub(crate) fn get_val_of_var(&self, name: &str) -> Option<Value> {
         for scope in self.scopes.iter().rev() {
             if let Some(val) = scope.variables.get(name) {
                 return Some(val.clone());
@@ -304,7 +304,6 @@ impl Visitor for Interpreter {
         Err(eyre!(RuntimeError::FunctionNotDeclared(func.name.clone())))
     }
 
-    #[allow(unused_variables)]
     fn visit_stmt(&mut self, stmt: &StmtKind) -> Result<ControlFlow> {
         let ctrl_flow = match stmt {
             StmtKind::BreakLoop => ControlFlow::Break,
@@ -331,7 +330,11 @@ impl Visitor for Interpreter {
                 }
                 ControlFlow::Nop
             }
-            StmtKind::FuncReturn(_) => todo!(),
+            StmtKind::FuncReturn(expr) => {
+                // TODO: check
+                let ret_val = expr.visit(self)?;
+                ControlFlow::Return(ret_val)
+            }
             StmtKind::Declare { lhs, rhs } => {
                 let val = rhs.visit(self)?;
                 self.environment.register_variable(lhs, val);
@@ -372,8 +375,33 @@ impl Visitor for Interpreter {
                     ControlFlow::Nop
                 }
             }
-            StmtKind::ForLoop { start, end, body } => todo!(),
-            StmtKind::WhileLoop { condition, body } => todo!(),
+            StmtKind::ForLoop { start, end, body } => {
+                let mut res = ControlFlow::Nop;
+                let diff = start.diff(end, &self.environment);
+                for _ in 0..diff {
+                    res = body.visit(self)?;
+                    match res {
+                        ControlFlow::Nop => {}
+                        ControlFlow::Break => return Ok(ControlFlow::Nop),
+                        ControlFlow::Return(_) => return Ok(res),
+                    }
+                }
+                res
+            }
+            StmtKind::WhileLoop { condition, body } => {
+                let mut res = ControlFlow::Nop;
+                while let Value::Bool(val) = condition.visit(self)?
+                    && val
+                {
+                    res = body.visit(self)?;
+                    match res {
+                        ControlFlow::Nop => {}
+                        ControlFlow::Break => return Ok(ControlFlow::Nop),
+                        ControlFlow::Return(_) => return Ok(res),
+                    }
+                }
+                res
+            }
         };
         Ok(ctrl_flow)
     }

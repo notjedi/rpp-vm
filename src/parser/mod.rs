@@ -1,8 +1,11 @@
-use crate::lexer::{KeyWord, Literal, Token, TokenKind};
-
 use color_eyre::eyre::Result;
 use std::{iter::Peekable, vec::IntoIter};
 use thiserror::Error;
+
+use crate::{
+    interpreter::{Environment, Value},
+    lexer::{KeyWord, Literal, Token, TokenKind},
+};
 
 type BoxExpr = Box<Expr>;
 type BoxStr = Box<String>;
@@ -27,8 +30,32 @@ type PResult<T> = Result<T, ParseError>;
 #[derive(Clone, Debug)]
 pub(crate) enum ForVar {
     Int(i64),
+    // TODO: no use of float in for loops?
+    #[allow(dead_code)]
     Float(f64),
     Ident(BoxStr),
+}
+
+impl ForVar {
+    pub(crate) fn as_int(&self, env: &Environment) -> Option<i64> {
+        match self {
+            ForVar::Int(val) => Some(*val),
+            ForVar::Float(_) => None,
+            ForVar::Ident(var_name) => {
+                if let Some(Value::Int(val)) = env.get_val_of_var(var_name) {
+                    Some(val)
+                } else {
+                    None
+                }
+            }
+        }
+    }
+    pub(crate) fn diff(&self, end: &Self, env: &Environment) -> i64 {
+        match (self.as_int(env), end.as_int(env)) {
+            (Some(start), Some(end)) => end - start,
+            _ => 0,
+        }
+    }
 }
 
 // https://adeschamps.github.io/enum-size
@@ -38,6 +65,7 @@ pub(crate) enum ForVar {
 pub(crate) enum StmtKind {
     BreakLoop,
     Expr(Expr),
+    #[allow(dead_code)]
     Comment(String),
     Print(Vec<Expr>),
     FuncCall(String),
