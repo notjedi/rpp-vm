@@ -232,6 +232,9 @@ impl Environment {
         ))))
     }
 
+    // TODO: this is now how we should be getting the value?
+    // functions shouldn't have the ability to access global vars defined in main
+    // only sub-scopes we have are if, else, for and while statements
     pub(crate) fn get_val_of_var(&self, name: &str) -> Option<Value> {
         for scope in self.scopes.iter().rev() {
             if let Some(val) = scope.variables.get(name) {
@@ -322,6 +325,7 @@ impl Visitor for Interpreter {
                 ControlFlow::Nop
             }
             StmtKind::FuncCall(func_name) => {
+                // TODO: start a new env here
                 if let Some(func) = self.environment.get_func(func_name) {
                     // TODO: any other way than cloning?
                     func.clone().visit(self)?;
@@ -346,6 +350,7 @@ impl Visitor for Interpreter {
                 var_name,
                 func_name,
             } => {
+                // TODO: start a new env here
                 if let Some(func) = self.environment.get_func(func_name) {
                     // TODO: any other way than cloning?
                     let res = func.clone().visit(self)?;
@@ -358,6 +363,7 @@ impl Visitor for Interpreter {
                 body,
                 else_body,
             } => {
+                // TODO: start a new scope here
                 let res = condition.visit(self)?;
                 if let Value::Bool(val) = res {
                     match val {
