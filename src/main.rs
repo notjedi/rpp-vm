@@ -4,76 +4,44 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(illegal_floating_point_literal_pattern)]
 
+mod compiler;
 mod interpreter;
 mod lexer;
 mod parser;
+mod vm;
 
-use crate::lexer::Lexer;
 use crate::parser::Parser;
+use crate::{lexer::Lexer, vm::Vm};
 
 use color_eyre::eyre::Result;
+use compiler::Compiler;
 use interpreter::{Interpreter, Visitable};
+
+const USE_COMPILER: bool = true;
 
 fn main() -> Result<()> {
     color_eyre::install()?;
     let program = r#"
-        EN VAZHI THANI VAZHI myfunc_one
-            AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 100;
-            DOT "returning ix =" ix "to main";
-            IDHU EPDI IRUKKU ix;
-        MARAKKADHINGA
-
         LAKSHMI START
-            AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 100;
-            DOT "printing ix =" ix "that was declared before";
-            ix BHAJJI SAAPDU ix+1;
-            DOT "printing ix =" ix "after it was updated";
-            DOT "is ix > 10 = " ix > 10;
-            DOT "is ix < 10 = " ix < 10;
-            DOT "is ix <= 10 = " ix <= 10;
-            DOT "is ix >= 10 = " ix >= 10;
-            DOT "is ix == 10 = " ix == 10;
-            DOT "is ix != 10 = " ix != 10;
-            DOT "\nis ix == True = " ix == True;
-            DOT "is ix == 101.0 = " ix == 101.0 "\n";
-
-            !! DOT "-ix is" -ix; = parses as a sub op b/w string and int
-            DOT -ix;
-            DOT +ix;
-
-            DOT "printing ix =" ix;
-            DOT;
-
-            AANDAVAN SOLLRAN range ARUNACHALAM SEIYARAN 5;
-            NAA 0 THADAVA SONNA range THADAVA SONNA MADHRI {
-                DOT "FizzBuzz";
-            }KATHAM KATHAM;
-            DOT;
-
-            AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 0;
-            BABA COUNTING STARTS True {
-                EN PEAR MANICKAM ix >= 5 {
-                    DOT "breaking out of loop...";
-                    BLACK SHEEP;
-                } ENAKKU INNURU PEAR IRUKKU{
-                    DOT ix;
-                }KATHAM KATHAM;
-                ix BHAJJI SAAPDU ix + 1;
-            }KATHAM KATHAM;
-
-            DOT;
-            y CHUMMA ADHURUDHULA myfunc_one;
-            DOT y;
-
-            DOT;
-            CHUMMA ADHURUDHULA myfunc_one;
+            25 + 15;
         MAGIZHCHI
     "#;
 
     let tokens = Lexer::tokenize_str(program)?;
     let mut parser = Parser::new(tokens);
     let ast = parser.parse()?;
-    let mut interpreter = Interpreter::new();
-    ast.visit(&mut interpreter)?;
+    if USE_COMPILER {
+        // Bytecode interpreter
+        let compiler = Compiler::new();
+        let bytecode_program = compiler.compile(&ast);
+        let mut vm = Vm::new();
+        vm.interpret(&bytecode_program);
+        dbg!(bytecode_program);
+        dbg!(vm);
+    } else {
+        // Tree-walk interpreter
+        let mut interpreter = Interpreter::new();
+        ast.visit(&mut interpreter)?;
+    }
     Ok(())
 }

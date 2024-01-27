@@ -167,6 +167,17 @@ impl ExprLeaf {
             Literal::BoolFalse => Self::BoolFalse,
         }
     }
+
+    pub(crate) fn to_value(expr_leaf: &ExprLeaf) -> Value {
+        match expr_leaf {
+            ExprLeaf::BoolTrue => Value::Bool(true),
+            ExprLeaf::BoolFalse => Value::Bool(false),
+            ExprLeaf::Int(int) => Value::Int(*int),
+            ExprLeaf::Float(float) => Value::Float(*float),
+            ExprLeaf::Char(ch) => Value::Char(*ch),
+            ExprLeaf::Str(str_val) => Value::Str(Box::clone(str_val)),
+        }
+    }
 }
 
 #[derive(Debug)]
