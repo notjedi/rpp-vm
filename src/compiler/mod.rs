@@ -21,7 +21,6 @@ pub(crate) enum Instruction {
     Loop(u16),
     Method(u8),
     Multiply,
-    Negate,
     Not,
     Pop,
     Print,
