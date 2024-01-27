@@ -1,15 +1,11 @@
-# rpp2cpp
+# rpp-vm
 
 This is a fun project to learn and build a interpreter and compiler from scratch for hacktoberfest.
 
 This code was written when rajiniPP was at [4d866c0](https://github.com/aadhithya/rajiniPP/tree/4d866c0093a247d788163111edfa87a6f886ddc5).
 
-### Pending:
-
-1. Semantic Analyzer
-2. Interpreter
-3. Compiler
-4. Proper error messages in the parser
+It has a tree-walk interpreter and also a bytecode compiler and interpreter.
+I was just toying around so it's kinda slow.
 
 ### References for lexer
 
