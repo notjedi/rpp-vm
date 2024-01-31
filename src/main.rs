@@ -27,15 +27,19 @@ fn main() -> Result<()> {
         MARAKKADHINGA
 
         LAKSHMI START
-            AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 100;
-            ix BHAJJI SAAPDU ix + 1;
-            DOT "returning ix =" ix "to main";
-            EN PEAR MANICKAM ix >= 5 {
-                DOT "ix is not less than 5";
-            } ENAKKU INNURU PEAR IRUKKU { 
-                DOT "ix is less than 5";
+            AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 0;
+            !! DOT "returning ix =" ix "to main";
+            !! EN PEAR MANICKAM ix >= 5 {
+            !!     DOT "ix is not less than 5";
+            !! } ENAKKU INNURU PEAR IRUKKU { 
+            !!     DOT "ix is less than 5";
+            !! } KATHAM KATHAM;
+            !! DOT "out of the if statement";
+
+            BABA COUNTING STARTS ix < 5 {
+                DOT ix;
+                ix BHAJJI SAAPDU ix + 1;
             } KATHAM KATHAM;
-            DOT "out of the if statement";
         MAGIZHCHI
     "#;
 

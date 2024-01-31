@@ -64,7 +64,10 @@ impl Vm {
                     let res = Value::Bool(a < b);
                     self.stack.push(res);
                 }
-                Instruction::Loop(_) => todo!(),
+                Instruction::Loop(offset) => {
+                    self.ip -= offset;
+                    continue;
+                }
                 Instruction::Method(_) => todo!(),
                 Instruction::Mod => {
                     let b = self.pop_stack();
@@ -89,11 +92,8 @@ impl Vm {
                     self.pop_stack();
                 }
                 Instruction::Print => {
-                    if let Value::Str(str_val) = self.pop_stack() {
-                        println!("{}", str_val);
-                    } else {
-                        todo!("return runtime time error")
-                    }
+                    let str_val = self.pop_stack();
+                    println!("{}", str_val.to_string());
                 }
                 Instruction::Return => {
                     return;

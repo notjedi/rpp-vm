@@ -15,7 +15,7 @@ pub(crate) enum Instruction {
     Jump(usize),
     JumpIfFalse(usize),
     Less,
-    Loop(u16),
+    Loop(usize),
     Method(usize),
     Mod,
     Multiply,
@@ -213,7 +213,21 @@ impl Compiler {
                 }
             }
             StmtKind::ForLoop { start, end, body } => todo!(),
-            StmtKind::WhileLoop { condition, body } => todo!(),
+            StmtKind::WhileLoop { condition, body } => {
+                let loop_start = self.bytecode_program.instructions.len();
+                self.eval_expr(&condition);
+                self.bytecode_program
+                    .write_instruction(Instruction::JumpIfFalse(0));
+                let exit_jump = self.bytecode_program.instructions.len() - 1;
+                self.eval_stmts(&body);
+
+                let loop_offset = self.bytecode_program.instructions.len() - loop_start;
+                self.bytecode_program
+                    .write_instruction(Instruction::Loop(loop_offset));
+                let curr_instr_len = self.bytecode_program.instructions.len() - 1;
+                self.bytecode_program.instructions[exit_jump] =
+                    Instruction::JumpIfFalse(curr_instr_len - exit_jump);
+            }
         }
     }
 
