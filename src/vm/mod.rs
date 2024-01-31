@@ -22,7 +22,8 @@ impl Vm {
     }
 
     pub(crate) fn interpret(&mut self, program: &CompiledProgram) {
-        for instr in &program.instructions {
+        loop {
+            let instr = &program.instructions[self.ip];
             match instr {
                 Instruction::Add => {
                     let b = self.pop_stack();
@@ -45,19 +46,45 @@ impl Vm {
                 Instruction::False => todo!(),
                 Instruction::GetLocal(idx) => self.stack.push(self.stack[*idx].clone()),
                 Instruction::Greater => todo!(),
-                Instruction::Jump(_) => todo!(),
-                Instruction::JumpIfFalse(_) => todo!(),
-                Instruction::Less => todo!(),
+                Instruction::Jump(offset) => {
+                    self.ip += offset;
+                }
+                Instruction::JumpIfFalse(offset) => {
+                    if let Some(Value::Bool(val)) = self.stack.last() {
+                        if !val {
+                            self.ip += offset;
+                        }
+                    } else {
+                        todo!("return runtime time error")
+                    }
+                }
+                Instruction::Less => {
+                    let b = self.pop_stack();
+                    let a = self.pop_stack();
+                    let res = Value::Bool(a < b);
+                    self.stack.push(res);
+                }
                 Instruction::Loop(_) => todo!(),
                 Instruction::Method(_) => todo!(),
-                Instruction::Mod => todo!(),
+                Instruction::Mod => {
+                    let b = self.pop_stack();
+                    let a = self.pop_stack();
+                    let res = a % b;
+                    self.stack.push(res);
+                }
                 Instruction::Multiply => {
                     let b = self.pop_stack();
                     let a = self.pop_stack();
                     let res = a * b;
                     self.stack.push(res);
                 }
-                Instruction::Not => todo!(),
+                Instruction::Not => {
+                    if let Value::Bool(val) = self.pop_stack() {
+                        self.stack.push(Value::Bool(!val));
+                    } else {
+                        todo!("return runtime time error")
+                    }
+                }
                 Instruction::Pop => {
                     self.pop_stack();
                 }
@@ -65,11 +92,12 @@ impl Vm {
                     if let Value::Str(str_val) = self.pop_stack() {
                         println!("{}", str_val);
                     } else {
-                        //
-                        todo!("return compile time error")
+                        todo!("return runtime time error")
                     }
                 }
-                Instruction::Return => todo!(),
+                Instruction::Return => {
+                    return;
+                }
                 Instruction::SetLocal(idx) => {
                     self.stack[*idx] = self.stack.last().expect("stack is empty").clone();
                 }
@@ -81,6 +109,7 @@ impl Vm {
                 }
                 Instruction::True => todo!(),
             }
+            self.ip += 1;
         }
     }
 }

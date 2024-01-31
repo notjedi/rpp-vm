@@ -12,8 +12,8 @@ pub(crate) enum Instruction {
     False,
     GetLocal(usize),
     Greater,
-    Jump(u16),
-    JumpIfFalse(u16),
+    Jump(usize),
+    JumpIfFalse(usize),
     Less,
     Loop(u16),
     Method(usize),
@@ -89,13 +89,18 @@ impl Compiler {
     }
 
     pub(crate) fn compile_program(mut self, program: &Program) -> CompiledProgram {
-        for stmt in program.main_stmts.iter() {
+        self.eval_stmts(&program.main_stmts);
+        self.bytecode_program.write_instruction(Instruction::Return);
+        self.bytecode_program
+    }
+
+    fn eval_stmts(&mut self, stmts: &Vec<StmtKind>) {
+        for stmt in stmts.iter() {
             self.eval_stmt(stmt);
             if let StmtKind::Expr(_) = stmt {
                 self.bytecode_program.write_instruction(Instruction::Pop);
             }
         }
-        self.bytecode_program
     }
 
     fn get_idx_of_func(&self, func_name: &str) -> Option<usize> {
@@ -112,7 +117,6 @@ impl Compiler {
     fn get_idx_of_local(&self, name: &str) -> Option<usize> {
         for (idx, local) in self.locals.iter().rev().enumerate() {
             if *local.name == name {
-                // TODO: get the idx right
                 return Some(self.locals.len() - idx - 1);
             }
         }
@@ -141,7 +145,6 @@ impl Compiler {
             }
             StmtKind::Comment(_) => {}
             StmtKind::Print(exprs) => {
-                // TODO: add support for Add instr for strings
                 let mut expr_iter = exprs.iter();
                 if let Some(expr) = expr_iter.next() {
                     self.eval_expr(expr);
@@ -175,7 +178,6 @@ impl Compiler {
                     self.bytecode_program
                         .write_instruction(Instruction::SetLocal(idx));
                 } else {
-                    // TODO: return error
                     todo!("return compile time error")
                 }
             }
@@ -187,7 +189,29 @@ impl Compiler {
                 condition,
                 body,
                 else_body,
-            } => todo!(),
+            } => {
+                self.eval_expr(condition);
+                self.bytecode_program
+                    .write_instruction(Instruction::JumpIfFalse(0));
+
+                let if_offset = self.bytecode_program.instructions.len() - 1;
+                self.bytecode_program.write_instruction(Instruction::Pop);
+                self.eval_stmts(body);
+                let curr_instr_len = self.bytecode_program.instructions.len() - 1;
+                self.bytecode_program.instructions[if_offset] =
+                    Instruction::JumpIfFalse(curr_instr_len - if_offset);
+
+                if else_body.len() != 0 {
+                    self.bytecode_program
+                        .write_instruction(Instruction::Jump(0));
+                    let else_offset = self.bytecode_program.instructions.len() - 1;
+                    self.bytecode_program.write_instruction(Instruction::Pop);
+                    self.eval_stmts(else_body);
+                    let curr_instr_len = self.bytecode_program.instructions.len() - 1;
+                    self.bytecode_program.instructions[else_offset] =
+                        Instruction::Jump(curr_instr_len - else_offset);
+                }
+            }
             StmtKind::ForLoop { start, end, body } => todo!(),
             StmtKind::WhileLoop { condition, body } => todo!(),
         }
@@ -247,6 +271,7 @@ impl Compiler {
                 self.bytecode_program.write_instruction(instr);
             }
             Expr::ExprLeaf(expr_leaf) => {
+                // TODO: use OP_FALSE and OP_TRUE for bool vals
                 let val = ExprLeaf::to_value(expr_leaf);
                 let idx = self.bytecode_program.push_constant(val);
                 self.bytecode_program
