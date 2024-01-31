@@ -13,34 +13,34 @@ LAKSHMI START
     51 % 5;
 
     !! testing while loop
-    BABA COUNTING STARTS True{
+    BABA COUNTING STARTS True {
         DOT ix;
         ix BHAJJI SAAPDU ix + 1;
-        EN PEAR MANICKAM ix >= 5{
+        EN PEAR MANICKAM ix >= 5 {
             DOT "breaking out of loop...";
             BLACK SHEEP;
-        }KATHAM KATHAM;
-    }KATHAM KATHAM;
+        } KATHAM KATHAM;
+    } KATHAM KATHAM;
 
     y CHUMMA ADHURUDHULA myfunc_one;
 
     AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 1;
     AANDAVAN SOLLRAN range ARUNACHALAM SEIYARAN 16;
 
-    NAA 1 THADAVA SONNA range THADAVA SONNA MADHRI{
-        EN PEAR MANICKAM ix%15==0{
+    NAA 1 THADAVA SONNA range THADAVA SONNA MADHRI {
+        EN PEAR MANICKAM ix%15==0 {
             DOT "FizzBuzz";
-        } ENAKKU INNURU PEAR IRUKKU{
-            EN PEAR MANICKAM ix%3==0{
+        } ENAKKU INNURU PEAR IRUKKU {
+            EN PEAR MANICKAM ix%3==0 {
                 DOT "Fizz";
-            } ENAKKU INNURU PEAR IRUKKU{
-                EN PEAR MANICKAM ix%5==0{
+            } ENAKKU INNURU PEAR IRUKKU {
+                EN PEAR MANICKAM ix%5==0 {
                     DOT "Buzz";
-                } ENAKKU INNURU PEAR IRUKKU{
+                } ENAKKU INNURU PEAR IRUKKU {
                     DOT ix;
-                }KATHAM KATHAM;
-            }KATHAM KATHAM;
-        }KATHAM KATHAM;
+                } KATHAM KATHAM;
+            } KATHAM KATHAM;
+        } KATHAM KATHAM;
         ix BHAJJI SAAPDU ix+1;
-    }KATHAM KATHAM;
+    } KATHAM KATHAM;
 MAGIZHCHI

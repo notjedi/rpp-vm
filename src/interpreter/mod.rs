@@ -8,7 +8,10 @@ use std::{
 };
 use thiserror::Error;
 
-use crate::parser::{BinaryOp, Expr, ExprLeaf, Function, LogicalOp, Program, StmtKind};
+use crate::{
+    compiler::ProgFunction,
+    parser::{BinaryOp, Expr, ExprLeaf, Function, LogicalOp, Program, StmtKind},
+};
 
 type BoxStr = Box<String>;
 
@@ -37,6 +40,7 @@ pub(crate) enum Value {
     Bool(bool),
     #[allow(clippy::box_collection)]
     Str(Box<String>),
+    ProgFunction(ProgFunction),
 }
 
 impl Display for Value {
@@ -48,6 +52,7 @@ impl Display for Value {
             Self::Bool(arg0) => f.write_fmt(format_args!("{}", arg0)),
             Self::Char(arg0) => f.write_fmt(format_args!("{}", arg0)),
             Self::Float(arg0) => f.write_fmt(format_args!("{}", arg0)),
+            Value::ProgFunction(arg0) => f.write_fmt(format_args!("{:?}", arg0)),
         }
     }
 }
@@ -80,6 +85,70 @@ impl PartialEq for Value {
             (Value::Int(lhs), Value::Float(rhs)) => &(*lhs as f64) == rhs,
             (Value::Float(lhs), Value::Int(rhs)) => lhs == &(*rhs as f64),
             _ => false,
+        }
+    }
+}
+
+impl Add<Value> for Value {
+    type Output = Value;
+
+    fn add(self, rhs: Value) -> Self::Output {
+        match (self, rhs) {
+            (Value::Int(lhs), Value::Int(rhs)) => Value::Int(lhs + rhs),
+            (Value::Int(lhs), Value::Float(rhs)) => Value::Float(lhs as f64 + rhs),
+            (Value::Float(lhs), Value::Int(rhs)) => Value::Float(lhs + rhs as f64),
+            (Value::Float(lhs), Value::Float(rhs)) => Value::Float(lhs + rhs),
+            (Value::Str(lhs), rhs) => Value::Str(Box::new(*lhs + " " + &rhs.to_string())),
+            (lhs, Value::Str(rhs)) => Value::Str(Box::new(lhs.to_string() + " " + &rhs)),
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl Add<&Value> for Value {
+    type Output = Value;
+
+    fn add(self, rhs: &Value) -> Self::Output {
+        match (self, rhs) {
+            (Value::Int(lhs), Value::Int(rhs)) => Value::Int(lhs + *rhs),
+            (Value::Int(lhs), Value::Float(rhs)) => Value::Float(lhs as f64 + *rhs),
+            (Value::Float(lhs), Value::Int(rhs)) => Value::Float(lhs + *rhs as f64),
+            (Value::Float(lhs), Value::Float(rhs)) => Value::Float(lhs + *rhs),
+            (Value::Str(lhs), rhs) => Value::Str(Box::new(*lhs + " " + &rhs.to_string())),
+            (lhs, Value::Str(rhs)) => Value::Str(Box::new(lhs.to_string() + " " + &rhs)),
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl Add<Value> for &Value {
+    type Output = Value;
+
+    fn add(self, rhs: Value) -> Self::Output {
+        match (self, rhs) {
+            (Value::Int(lhs), Value::Int(rhs)) => Value::Int(*lhs + rhs),
+            (Value::Int(lhs), Value::Float(rhs)) => Value::Float(*lhs as f64 + rhs),
+            (Value::Float(lhs), Value::Int(rhs)) => Value::Float(*lhs + rhs as f64),
+            (Value::Float(lhs), Value::Float(rhs)) => Value::Float(*lhs + rhs),
+            (Value::Str(lhs), rhs) => Value::Str(Box::new(*lhs.clone() + " " + &rhs.to_string())),
+            (lhs, Value::Str(rhs)) => Value::Str(Box::new(lhs.to_string() + " " + &rhs)),
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl Add<&Value> for &Value {
+    type Output = Value;
+
+    fn add(self, rhs: &Value) -> Self::Output {
+        match (self, rhs) {
+            (Value::Int(lhs), Value::Int(rhs)) => Value::Int(*lhs + *rhs),
+            (Value::Int(lhs), Value::Float(rhs)) => Value::Float(*lhs as f64 + *rhs),
+            (Value::Float(lhs), Value::Int(rhs)) => Value::Float(*lhs + *rhs as f64),
+            (Value::Float(lhs), Value::Float(rhs)) => Value::Float(*lhs + *rhs),
+            (Value::Str(lhs), rhs) => Value::Str(Box::new(*lhs.clone() + " " + &rhs.to_string())),
+            (lhs, Value::Str(rhs)) => Value::Str(Box::new(lhs.to_string() + " " + &rhs)),
+            _ => unreachable!(),
         }
     }
 }
@@ -144,7 +213,7 @@ macro_rules! impl_bin_ops {
     };
 }
 
-impl_bin_ops!(Add, add, +);
+// impl_bin_ops!(Add, add, +);
 impl_bin_ops!(Sub, sub, -);
 impl_bin_ops!(Mul, mul, *);
 impl_bin_ops!(Div, div, /);

@@ -22,8 +22,14 @@ const USE_COMPILER: bool = true;
 fn main() -> Result<()> {
     color_eyre::install()?;
     let program = r#"
-        LAKSHMI START
+        EN VAZHI THANI VAZHI myfunc_one
             25 + 15;
+        MARAKKADHINGA
+
+        LAKSHMI START
+            AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 100;
+            ix BHAJJI SAAPDU ix + 1;
+            DOT "returning ix =" ix "to main";
         MAGIZHCHI
     "#;
 
@@ -33,10 +39,10 @@ fn main() -> Result<()> {
     if USE_COMPILER {
         // Bytecode interpreter
         let compiler = Compiler::new();
-        let bytecode_program = compiler.compile(&ast);
+        let bytecode_program = compiler.compile_program(&ast);
+        dbg!(&bytecode_program);
         let mut vm = Vm::new();
         vm.interpret(&bytecode_program);
-        dbg!(bytecode_program);
         dbg!(vm);
     } else {
         // Tree-walk interpreter

@@ -30,8 +30,6 @@ impl Vm {
                     let res = a + b;
                     self.stack.push(res);
                 }
-                Instruction::Call(_) => todo!(),
-                Instruction::Closure(_) => todo!(),
                 Instruction::Constant(idx) => {
                     // TODO: bro, i need to find a way out of clones
                     let val = program.constants[*idx].clone();
@@ -45,14 +43,14 @@ impl Vm {
                 }
                 Instruction::Equal => todo!(),
                 Instruction::False => todo!(),
-                Instruction::GetLocal(_) => todo!(),
+                Instruction::GetLocal(idx) => self.stack.push(self.stack[*idx].clone()),
                 Instruction::Greater => todo!(),
-                Instruction::Invoke(_) => todo!(),
                 Instruction::Jump(_) => todo!(),
                 Instruction::JumpIfFalse(_) => todo!(),
                 Instruction::Less => todo!(),
                 Instruction::Loop(_) => todo!(),
                 Instruction::Method(_) => todo!(),
+                Instruction::Mod => todo!(),
                 Instruction::Multiply => {
                     let b = self.pop_stack();
                     let a = self.pop_stack();
@@ -60,11 +58,21 @@ impl Vm {
                     self.stack.push(res);
                 }
                 Instruction::Not => todo!(),
-                Instruction::Pop => todo!(),
-                Instruction::Print => todo!(),
+                Instruction::Pop => {
+                    self.pop_stack();
+                }
+                Instruction::Print => {
+                    if let Value::Str(str_val) = self.pop_stack() {
+                        println!("{}", str_val);
+                    } else {
+                        //
+                        todo!("return compile time error")
+                    }
+                }
                 Instruction::Return => todo!(),
-                Instruction::SetGlobal(_) => todo!(),
-                Instruction::SetLocal(_) => todo!(),
+                Instruction::SetLocal(idx) => {
+                    self.stack[*idx] = self.stack.last().expect("stack is empty").clone();
+                }
                 Instruction::Substract => {
                     let b = self.pop_stack();
                     let a = self.pop_stack();
