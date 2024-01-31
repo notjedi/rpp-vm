@@ -177,6 +177,7 @@ impl Compiler {
                 if let Some(idx) = self.get_idx_of_local(lhs) {
                     self.bytecode_program
                         .write_instruction(Instruction::SetLocal(idx));
+                    self.bytecode_program.write_instruction(Instruction::Pop);
                 } else {
                     todo!("return compile time error")
                 }
@@ -190,6 +191,7 @@ impl Compiler {
                 body,
                 else_body,
             } => {
+                self.begin_scope();
                 self.eval_expr(condition);
                 self.bytecode_program
                     .write_instruction(Instruction::JumpIfFalse(0));
@@ -211,14 +213,17 @@ impl Compiler {
                     self.bytecode_program.instructions[else_offset] =
                         Instruction::Jump(curr_instr_len - else_offset);
                 }
+                self.end_scope();
             }
             StmtKind::ForLoop { start, end, body } => todo!(),
             StmtKind::WhileLoop { condition, body } => {
+                self.begin_scope();
                 let loop_start = self.bytecode_program.instructions.len();
                 self.eval_expr(&condition);
                 self.bytecode_program
                     .write_instruction(Instruction::JumpIfFalse(0));
                 let exit_jump = self.bytecode_program.instructions.len() - 1;
+                self.bytecode_program.write_instruction(Instruction::Pop);
                 self.eval_stmts(&body);
 
                 let loop_offset = self.bytecode_program.instructions.len() - loop_start;
@@ -227,6 +232,8 @@ impl Compiler {
                 let curr_instr_len = self.bytecode_program.instructions.len() - 1;
                 self.bytecode_program.instructions[exit_jump] =
                     Instruction::JumpIfFalse(curr_instr_len - exit_jump);
+                self.bytecode_program.write_instruction(Instruction::Pop);
+                self.end_scope();
             }
         }
     }
