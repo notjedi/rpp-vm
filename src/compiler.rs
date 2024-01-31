@@ -129,12 +129,18 @@ impl Compiler {
 
     fn end_scope(&mut self) {
         self.scope_depth -= 1;
-        let mut locals_iter = self.locals.iter_mut().rev();
-        while let Some(local) = locals_iter.next()
-            && local.depth > self.scope_depth
-        {
-            self.bytecode_program.write_instruction(Instruction::Pop);
+        let mut count = 0;
+        for local in self.locals.iter().rev() {
+            if local.depth > self.scope_depth {
+                self.bytecode_program.write_instruction(Instruction::Pop);
+                count += 1;
+            } else {
+                break;
+            }
         }
+        (0..count).for_each(|_| {
+            self.locals.pop();
+        });
     }
 
     fn eval_stmt(&mut self, stmt: &StmtKind) {
@@ -177,6 +183,7 @@ impl Compiler {
                 if let Some(idx) = self.get_idx_of_local(lhs) {
                     self.bytecode_program
                         .write_instruction(Instruction::SetLocal(idx));
+                    // TODO: is this right? refer to the book once;
                     self.bytecode_program.write_instruction(Instruction::Pop);
                 } else {
                     todo!("return compile time error")
