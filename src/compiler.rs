@@ -215,13 +215,19 @@ impl Compiler {
             }
             StmtKind::Comment(_) => {}
             StmtKind::Print(exprs) => {
-                let mut expr_iter = exprs.iter();
-                if let Some(expr) = expr_iter.next() {
-                    self.eval_expr(expr);
-                }
-                for expr in expr_iter {
-                    self.eval_expr(expr);
-                    self.bytecode_program.write_instruction(Instruction::Add);
+                if exprs.len() == 0 {
+                    let idx = self.bytecode_program.push_constant(Value::Char(' '));
+                    self.bytecode_program
+                        .write_instruction(Instruction::Constant(idx));
+                } else {
+                    let mut expr_iter = exprs.iter();
+                    if let Some(expr) = expr_iter.next() {
+                        self.eval_expr(expr);
+                    }
+                    for expr in expr_iter {
+                        self.eval_expr(expr);
+                        self.bytecode_program.write_instruction(Instruction::Add);
+                    }
                 }
                 self.bytecode_program.write_instruction(Instruction::Print);
             }

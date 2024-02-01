@@ -39,6 +39,8 @@ fn main() -> Result<()> {
             } KATHAM KATHAM;
             DOT "out of the if statement, ix is now =" ix;
 
+            DOT;
+
             AANDAVAN SOLLRAN temp ARUNACHALAM SEIYARAN 0;
             BABA COUNTING STARTS temp < 2 {
                 AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 0;
@@ -50,12 +52,14 @@ fn main() -> Result<()> {
                 DOT "done with outer loop";
             } KATHAM KATHAM;
 
+            DOT;
+
             AANDAVAN SOLLRAN range ARUNACHALAM SEIYARAN 5;
             NAA 1 THADAVA SONNA range THADAVA SONNA MADHRI {
                 DOT "Hi from for stmt";
             } KATHAM KATHAM;
 
-            !! TODO: support empty DOT stmts
+            DOT;
 
             AANDAVAN SOLLRAN chumma ARUNACHALAM SEIYARAN 0;
             BABA COUNTING STARTS True {
@@ -67,6 +71,8 @@ fn main() -> Result<()> {
                 } KATHAM KATHAM;
             } KATHAM KATHAM;
 
+            DOT;
+
             AANDAVAN SOLLRAN start ARUNACHALAM SEIYARAN 0;
             AANDAVAN SOLLRAN next_range ARUNACHALAM SEIYARAN 5;
             NAA start THADAVA SONNA next_range THADAVA SONNA MADHRI {
@@ -76,7 +82,6 @@ fn main() -> Result<()> {
                     BLACK SHEEP;
                 } KATHAM KATHAM;
             } KATHAM KATHAM;
-
         MAGIZHCHI
     "#;
 
