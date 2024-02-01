@@ -123,6 +123,7 @@ impl Compiler {
         None
     }
 
+    #[inline]
     fn begin_scope(&mut self) {
         self.scope_depth += 1;
     }
@@ -141,6 +142,28 @@ impl Compiler {
         (0..count).for_each(|_| {
             self.locals.pop();
         });
+    }
+
+    #[inline]
+    fn instructions_len(&self) -> usize {
+        self.bytecode_program.instructions.len()
+    }
+
+    fn emit_jump(&mut self, instr: Instruction) -> usize {
+        self.bytecode_program
+            .write_instruction(Instruction::JumpIfFalse(0));
+        self.instructions_len() - 1
+    }
+
+    fn patch_jump(&mut self, offset: usize) {
+        let curr_instr_len = self.instructions_len() - 1;
+        let patch_offset = curr_instr_len - offset + 1;
+        let instr = match &self.bytecode_program.instructions[offset] {
+            Instruction::JumpIfFalse(_) => Instruction::JumpIfFalse(patch_offset),
+            Instruction::Jump(_) => Instruction::Jump(patch_offset),
+            _ => unreachable!(),
+        };
+        let instr = self.bytecode_program.instructions[offset] = instr;
     }
 
     fn eval_stmt(&mut self, stmt: &StmtKind) {
@@ -198,53 +221,42 @@ impl Compiler {
                 body,
                 else_body,
             } => {
-                self.begin_scope();
                 self.eval_expr(condition);
-                self.bytecode_program
-                    .write_instruction(Instruction::JumpIfFalse(0));
+                let if_offset = self.emit_jump(Instruction::JumpIfFalse(0));
 
-                let if_offset = self.bytecode_program.instructions.len() - 1;
+                self.begin_scope();
                 self.bytecode_program.write_instruction(Instruction::Pop);
                 self.eval_stmts(body);
+                self.end_scope();
 
                 if else_body.len() != 0 {
-                    self.bytecode_program
-                        .write_instruction(Instruction::Jump(0));
-                    let else_offset = self.bytecode_program.instructions.len() - 1;
-                    let curr_instr_len = self.bytecode_program.instructions.len() - 1;
-                    self.bytecode_program.instructions[if_offset] =
-                        Instruction::JumpIfFalse(curr_instr_len - if_offset + 1);
+                    let else_offset = self.emit_jump(Instruction::Jump(0));
+                    self.patch_jump(if_offset);
 
+                    self.begin_scope();
                     self.bytecode_program.write_instruction(Instruction::Pop);
                     self.eval_stmts(else_body);
-                    let curr_instr_len = self.bytecode_program.instructions.len() - 1;
-                    self.bytecode_program.instructions[else_offset] =
-                        Instruction::Jump(curr_instr_len - else_offset + 1);
+                    self.end_scope();
+                    self.patch_jump(else_offset);
                 } else {
-                    let curr_instr_len = self.bytecode_program.instructions.len() - 1;
-                    self.bytecode_program.instructions[if_offset] =
-                        Instruction::JumpIfFalse(curr_instr_len - if_offset + 1);
+                    self.patch_jump(if_offset);
                 }
-                self.end_scope();
             }
             StmtKind::ForLoop { start, end, body } => todo!(),
             StmtKind::WhileLoop { condition, body } => {
-                self.begin_scope();
-                let loop_start = self.bytecode_program.instructions.len();
+                let loop_start = self.instructions_len();
                 self.eval_expr(&condition);
-                self.bytecode_program
-                    .write_instruction(Instruction::JumpIfFalse(0));
-                let exit_jump = self.bytecode_program.instructions.len() - 1;
+                let exit_jump = self.emit_jump(Instruction::JumpIfFalse(0));
+
+                self.begin_scope();
                 self.bytecode_program.write_instruction(Instruction::Pop);
                 self.eval_stmts(&body);
-
                 self.end_scope();
-                let loop_offset = self.bytecode_program.instructions.len() - loop_start;
+
+                let loop_offset = self.instructions_len() - loop_start;
                 self.bytecode_program
                     .write_instruction(Instruction::Loop(loop_offset));
-                let curr_instr_len = self.bytecode_program.instructions.len() - 1;
-                self.bytecode_program.instructions[exit_jump] =
-                    Instruction::JumpIfFalse(curr_instr_len - exit_jump + 1);
+                self.patch_jump(exit_jump);
                 self.bytecode_program.write_instruction(Instruction::Pop);
             }
         }

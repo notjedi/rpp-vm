@@ -24,8 +24,6 @@ impl Vm {
     pub(crate) fn interpret(&mut self, program: &CompiledProgram) {
         loop {
             let instr = &program.instructions[self.ip];
-            // dbg!(&instr);
-            // dbg!(&self.stack);
             match instr {
                 Instruction::Add => {
                     let b = self.pop_stack();

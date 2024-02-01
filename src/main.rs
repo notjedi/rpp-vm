@@ -31,8 +31,10 @@ fn main() -> Result<()> {
         LAKSHMI START
             AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 0;
             EN PEAR MANICKAM ix >= 5 {
+                AANDAVAN SOLLRAN hii ARUNACHALAM SEIYARAN 0;
                 DOT "ix is not less than 5";
             } ENAKKU INNURU PEAR IRUKKU {
+                AANDAVAN SOLLRAN hii ARUNACHALAM SEIYARAN 0;
                 DOT "ix is less than 5";
             } KATHAM KATHAM;
             DOT "out of the if statement, ix is now =" ix;
