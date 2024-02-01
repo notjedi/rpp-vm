@@ -39,8 +39,6 @@ fn main() -> Result<()> {
             } KATHAM KATHAM;
             DOT "out of the if statement, ix is now =" ix;
 
-            !! TODO: support break statements
-
             AANDAVAN SOLLRAN temp ARUNACHALAM SEIYARAN 0;
             BABA COUNTING STARTS temp < 2 {
                 AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 0;
@@ -57,11 +55,28 @@ fn main() -> Result<()> {
                 DOT "Hi from for stmt";
             } KATHAM KATHAM;
 
-            !! AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 0;
-            !! EN PEAR MANICKAM ix >= 5 {
-            !!     AANDAVAN SOLLRAN hii ARUNACHALAM SEIYARAN 0;
-            !!     DOT "ix is not less than 5";
-            !! } KATHAM KATHAM;
+            !! TODO: support empty DOT stmts
+
+            AANDAVAN SOLLRAN chumma ARUNACHALAM SEIYARAN 0;
+            BABA COUNTING STARTS True {
+                DOT chumma;
+                chumma BHAJJI SAAPDU chumma + 1;
+                EN PEAR MANICKAM chumma >= 5 {
+                    DOT "breaking out of loop...";
+                    BLACK SHEEP;
+                } KATHAM KATHAM;
+            } KATHAM KATHAM;
+
+            AANDAVAN SOLLRAN start ARUNACHALAM SEIYARAN 0;
+            AANDAVAN SOLLRAN next_range ARUNACHALAM SEIYARAN 5;
+            NAA start THADAVA SONNA next_range THADAVA SONNA MADHRI {
+                DOT start;
+                EN PEAR MANICKAM start >= 2 {
+                    DOT "breaking out of loop...";
+                    BLACK SHEEP;
+                } KATHAM KATHAM;
+            } KATHAM KATHAM;
+
         MAGIZHCHI
     "#;
 

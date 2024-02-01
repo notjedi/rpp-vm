@@ -75,6 +75,7 @@ pub(crate) struct Compiler {
     bytecode_program: CompiledProgram,
     locals: Vec<Local>,
     scope_depth: usize,
+    seen_break_stmt: bool,
 }
 
 impl Compiler {
@@ -83,6 +84,7 @@ impl Compiler {
             bytecode_program: CompiledProgram::new(),
             locals: vec![],
             scope_depth: 0,
+            seen_break_stmt: false,
         }
     }
 
@@ -94,10 +96,28 @@ impl Compiler {
 
     fn eval_stmts(&mut self, stmts: &Vec<StmtKind>) {
         for stmt in stmts.iter() {
+            let start_len = self.instructions_len();
             self.eval_stmt(stmt);
-            if let StmtKind::Expr(_) = stmt {
-                self.bytecode_program.write_instruction(Instruction::Pop);
-            }
+            match stmt {
+                StmtKind::Expr(_) => self.bytecode_program.write_instruction(Instruction::Pop),
+                StmtKind::WhileLoop { .. } | StmtKind::ForLoop { .. } => {
+                    if self.seen_break_stmt {
+                        let final_len = self.instructions_len();
+                        for (i, instr) in self.bytecode_program.instructions[start_len..]
+                            .iter_mut()
+                            .enumerate()
+                        {
+                            if let Instruction::Jump(offset) = instr
+                                && *offset == 0
+                            {
+                                *instr = Instruction::Jump(final_len - (i + start_len));
+                            }
+                        }
+                        self.seen_break_stmt = false;
+                    }
+                }
+                _ => {}
+            };
         }
     }
 
@@ -160,8 +180,7 @@ impl Compiler {
     }
 
     fn emit_jump(&mut self, instr: Instruction) -> usize {
-        self.bytecode_program
-            .write_instruction(Instruction::JumpIfFalse(0));
+        self.bytecode_program.write_instruction(instr);
         self.instructions_len() - 1
     }
 
@@ -186,7 +205,11 @@ impl Compiler {
 
     fn eval_stmt(&mut self, stmt: &StmtKind) {
         match stmt {
-            StmtKind::BreakLoop => todo!(),
+            StmtKind::BreakLoop => {
+                self.bytecode_program
+                    .write_instruction(Instruction::Jump(0));
+                self.seen_break_stmt = true;
+            }
             StmtKind::Expr(expr) => {
                 self.eval_expr(expr);
             }
@@ -268,9 +291,11 @@ impl Compiler {
                     self.end_scope();
                     self.patch_jump(else_offset);
                 } else {
+                    // if there is no else stmt and we execute the if body, we have to skip the below pop
+                    self.emit_jump(Instruction::Jump(2));
                     self.patch_jump(if_offset);
-                    // self.bytecode_program.write_instruction(Instruction::Pop);
-                    // TODO: when the if stmt fails and there is no else stmt, we need to pop the result of the comparision
+                    // pop result of comparision when `if` body is not executed
+                    self.bytecode_program.write_instruction(Instruction::Pop);
                 }
             }
             StmtKind::ForLoop { start, end, body } => {
@@ -304,34 +329,28 @@ impl Compiler {
                 self.end_scope();
 
                 // incr the start var
-                match &(**start) {
-                    ForVar::Int(int_val) => {
-                        let incr_stmt = StmtKind::Assign {
-                            lhs: Box::new(String::from("for_var_special")),
-                            rhs: Box::new(Expr::BinaryExpr {
-                                op: BinaryOp::Add,
-                                lhs: Box::new(Expr::Ident(Box::new(String::from(
-                                    "for_var_special",
-                                )))),
-                                rhs: Box::new(incr_expr),
-                            }),
-                        };
-                        self.eval_stmt(&incr_stmt);
-                    }
-                    ForVar::Ident(var_name) => {
-                        let incr_stmt = StmtKind::Assign {
-                            lhs: (*var_name).clone(),
-                            rhs: Box::new(Expr::BinaryExpr {
-                                op: BinaryOp::Add,
-                                lhs: Box::new(start_expr),
-                                rhs: Box::new(incr_expr),
-                            }),
-                        };
-                        self.eval_stmt(&incr_stmt);
-                    }
+                let incr_stmt = match &(**start) {
+                    ForVar::Int(int_val) => StmtKind::Assign {
+                        lhs: Box::new(String::from("for_var_special")),
+                        rhs: Box::new(Expr::BinaryExpr {
+                            op: BinaryOp::Add,
+                            lhs: Box::new(Expr::Ident(Box::new(String::from("for_var_special")))),
+                            rhs: Box::new(incr_expr),
+                        }),
+                    },
+                    ForVar::Ident(var_name) => StmtKind::Assign {
+                        lhs: (*var_name).clone(),
+                        rhs: Box::new(Expr::BinaryExpr {
+                            op: BinaryOp::Add,
+                            lhs: Box::new(start_expr),
+                            rhs: Box::new(incr_expr),
+                        }),
+                    },
                     ForVar::Float(_) => todo!("return compile time error"),
                 };
+                self.eval_stmt(&incr_stmt);
 
+                // finish the loop and patch the loop stmt
                 let loop_offset = self.instructions_len() - loop_start;
                 self.bytecode_program
                     .write_instruction(Instruction::Loop(loop_offset));

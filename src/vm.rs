@@ -44,7 +44,12 @@ impl Vm {
                 }
                 Instruction::Equal => todo!(),
                 Instruction::GetLocal(idx) => self.stack.push(self.stack[*idx].clone()),
-                Instruction::Greater => todo!(),
+                Instruction::Greater => {
+                    let b = self.pop_stack();
+                    let a = self.pop_stack();
+                    let res = Value::Bool(a > b);
+                    self.stack.push(res);
+                }
                 Instruction::Jump(offset) => {
                     self.ip += offset;
                     continue;
