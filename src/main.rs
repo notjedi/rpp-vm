@@ -39,7 +39,6 @@ fn main() -> Result<()> {
             } KATHAM KATHAM;
             DOT "out of the if statement, ix is now =" ix;
 
-            !! TODO: support for statements
             !! TODO: support break statements
 
             AANDAVAN SOLLRAN temp ARUNACHALAM SEIYARAN 0;
@@ -53,9 +52,16 @@ fn main() -> Result<()> {
                 DOT "done with outer loop";
             } KATHAM KATHAM;
 
-            AANDAVAN SOLLRAN hi ARUNACHALAM SEIYARAN 100;
-            hi BHAJJI SAAPDU hi + 1;
-            DOT hi;
+            AANDAVAN SOLLRAN range ARUNACHALAM SEIYARAN 5;
+            NAA 1 THADAVA SONNA range THADAVA SONNA MADHRI {
+                DOT "Hi from for stmt";
+            } KATHAM KATHAM;
+
+            !! AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 0;
+            !! EN PEAR MANICKAM ix >= 5 {
+            !!     AANDAVAN SOLLRAN hii ARUNACHALAM SEIYARAN 0;
+            !!     DOT "ix is not less than 5";
+            !! } KATHAM KATHAM;
         MAGIZHCHI
     "#;
 

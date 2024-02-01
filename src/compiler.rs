@@ -1,6 +1,6 @@
 use crate::{
     interpreter::Value,
-    parser::{BinaryOp, Expr, ExprLeaf, LogicalOp, Program, StmtKind},
+    parser::{BinaryOp, Expr, ExprLeaf, ForVar, LogicalOp, Program, StmtKind},
 };
 
 #[derive(Clone, Debug)]
@@ -176,6 +176,14 @@ impl Compiler {
         let instr = self.bytecode_program.instructions[offset] = instr;
     }
 
+    fn forvar_to_expr(val: &ForVar) -> Expr {
+        match val {
+            ForVar::Int(int_val) => Expr::ExprLeaf(ExprLeaf::Int(*int_val)),
+            ForVar::Ident(var_name) => Expr::Ident((*var_name).clone()),
+            ForVar::Float(_) => todo!("return compile time error"),
+        }
+    }
+
     fn eval_stmt(&mut self, stmt: &StmtKind) {
         match stmt {
             StmtKind::BreakLoop => todo!(),
@@ -236,42 +244,122 @@ impl Compiler {
                 body,
                 else_body,
             } => {
+                // setup instructions for the condition expr
                 self.eval_expr(condition);
                 let if_offset = self.emit_jump(Instruction::JumpIfFalse(0));
 
+                // generate instructions for the actual body of the if stmt
                 self.begin_scope();
+                // pop the result of the comparision
                 self.bytecode_program.write_instruction(Instruction::Pop);
                 self.eval_stmts(body);
                 self.end_scope();
 
                 if else_body.len() != 0 {
+                    // this also comes as the final part of the if stmt when an else block is there so it can skip the else block
                     let else_offset = self.emit_jump(Instruction::Jump(0));
                     self.patch_jump(if_offset);
 
+                    // generate instructions for the actual body of the else stmt
                     self.begin_scope();
+                    // pop the result of the comparision
                     self.bytecode_program.write_instruction(Instruction::Pop);
                     self.eval_stmts(else_body);
                     self.end_scope();
                     self.patch_jump(else_offset);
                 } else {
                     self.patch_jump(if_offset);
+                    // self.bytecode_program.write_instruction(Instruction::Pop);
+                    // TODO: when the if stmt fails and there is no else stmt, we need to pop the result of the comparision
                 }
             }
-            StmtKind::ForLoop { start, end, body } => todo!(),
-            StmtKind::WhileLoop { condition, body } => {
-                let loop_start = self.instructions_len();
-                self.eval_expr(&condition);
+            StmtKind::ForLoop { start, end, body } => {
+                let mut loop_start = self.instructions_len();
+                let start_expr = Self::forvar_to_expr(start);
+                let end_expr = Self::forvar_to_expr(end);
+                let incr_expr = Expr::ExprLeaf(ExprLeaf::Int(1));
+
+                // setup instructions for the condition expr
+                if let Expr::ExprLeaf(ExprLeaf::Int(_)) = start_expr {
+                    let start_expr_declare = StmtKind::Declare {
+                        lhs: Box::new(String::from("for_var_special")),
+                        rhs: Box::new(start_expr.clone()),
+                    };
+                    self.eval_stmt(&start_expr_declare);
+                    loop_start = self.instructions_len();
+                    self.bytecode_program
+                        .write_instruction(Instruction::GetLocal(self.locals.len() - 1));
+                } else {
+                    self.eval_expr(&start_expr);
+                }
+                self.eval_expr(&end_expr);
+                self.bytecode_program.write_instruction(Instruction::Less);
                 let exit_jump = self.emit_jump(Instruction::JumpIfFalse(0));
 
+                // 1st stmt of the loop, pop the comparision result
                 self.begin_scope();
+                // pop the result of the comparision
                 self.bytecode_program.write_instruction(Instruction::Pop);
                 self.eval_stmts(&body);
                 self.end_scope();
+
+                // incr the start var
+                match &(**start) {
+                    ForVar::Int(int_val) => {
+                        let incr_stmt = StmtKind::Assign {
+                            lhs: Box::new(String::from("for_var_special")),
+                            rhs: Box::new(Expr::BinaryExpr {
+                                op: BinaryOp::Add,
+                                lhs: Box::new(Expr::Ident(Box::new(String::from(
+                                    "for_var_special",
+                                )))),
+                                rhs: Box::new(incr_expr),
+                            }),
+                        };
+                        self.eval_stmt(&incr_stmt);
+                    }
+                    ForVar::Ident(var_name) => {
+                        let incr_stmt = StmtKind::Assign {
+                            lhs: (*var_name).clone(),
+                            rhs: Box::new(Expr::BinaryExpr {
+                                op: BinaryOp::Add,
+                                lhs: Box::new(start_expr),
+                                rhs: Box::new(incr_expr),
+                            }),
+                        };
+                        self.eval_stmt(&incr_stmt);
+                    }
+                    ForVar::Float(_) => todo!("return compile time error"),
+                };
 
                 let loop_offset = self.instructions_len() - loop_start;
                 self.bytecode_program
                     .write_instruction(Instruction::Loop(loop_offset));
                 self.patch_jump(exit_jump);
+
+                // 1st stmt after exiting the loop, pop the comparision result
+                self.bytecode_program.write_instruction(Instruction::Pop);
+            }
+            StmtKind::WhileLoop { condition, body } => {
+                // setup instructions for the condition expr
+                let loop_start = self.instructions_len();
+                self.eval_expr(&condition);
+                let exit_jump = self.emit_jump(Instruction::JumpIfFalse(0));
+
+                // generate instructions for the actual body of the loop
+                self.begin_scope();
+                // pop the result of the comparision
+                self.bytecode_program.write_instruction(Instruction::Pop);
+                self.eval_stmts(&body);
+                self.end_scope();
+
+                // emit loop Instruction so it can go back up to `loop_start`
+                let loop_offset = self.instructions_len() - loop_start;
+                self.bytecode_program
+                    .write_instruction(Instruction::Loop(loop_offset));
+                // path the exit jump so when the condition fails it can get out of the loop
+                self.patch_jump(exit_jump);
+                // pop the result of the comparision
                 self.bytecode_program.write_instruction(Instruction::Pop);
             }
         }

@@ -50,6 +50,7 @@ impl ForVar {
             }
         }
     }
+
     pub(crate) fn diff(&self, end: &Self, env: &Environment) -> i64 {
         match (self.as_int(env), end.as_int(env)) {
             (Some(start), Some(end)) => end - start,
