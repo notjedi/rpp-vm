@@ -43,7 +43,6 @@ impl Vm {
                     self.stack.push(res);
                 }
                 Instruction::Equal => todo!(),
-                Instruction::False => todo!(),
                 Instruction::GetLocal(idx) => self.stack.push(self.stack[*idx].clone()),
                 Instruction::Greater => todo!(),
                 Instruction::Jump(offset) => {
@@ -109,7 +108,6 @@ impl Vm {
                     let res = a - b;
                     self.stack.push(res);
                 }
-                Instruction::True => todo!(),
             }
             self.ip += 1;
         }

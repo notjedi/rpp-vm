@@ -9,7 +9,6 @@ pub(crate) enum Instruction {
     Constant(usize),
     Divide,
     Equal,
-    False,
     GetLocal(usize),
     Greater,
     Jump(usize),
@@ -25,7 +24,6 @@ pub(crate) enum Instruction {
     Return,
     SetLocal(usize),
     Substract,
-    True,
 }
 
 #[derive(Clone, Debug)]
@@ -123,6 +121,18 @@ impl Compiler {
         None
     }
 
+    fn check_if_var_in_scope(&self, name: &str) -> bool {
+        let mut locals_iter = self.locals.iter();
+        while let Some(local) = locals_iter.next()
+            && local.depth == self.scope_depth
+        {
+            if *local.name == name {
+                return true;
+            }
+        }
+        return false;
+    }
+
     #[inline]
     fn begin_scope(&mut self) {
         self.scope_depth += 1;
@@ -193,13 +203,18 @@ impl Compiler {
             },
             StmtKind::FuncReturn(_) => todo!(),
             StmtKind::Declare { lhs, rhs } => {
-                self.eval_expr(rhs);
-                self.locals.push(Local {
-                    name: lhs.clone(),
-                    depth: self.scope_depth,
-                });
-                self.bytecode_program
-                    .write_instruction(Instruction::SetLocal(self.locals.len() - 1));
+                match self.check_if_var_in_scope(lhs) {
+                    true => todo!("return compile time error"),
+                    false => {
+                        self.eval_expr(rhs);
+                        self.locals.push(Local {
+                            name: lhs.clone(),
+                            depth: self.scope_depth,
+                        });
+                        self.bytecode_program
+                            .write_instruction(Instruction::SetLocal(self.locals.len() - 1));
+                    }
+                };
             }
             StmtKind::Assign { lhs, rhs } => {
                 self.eval_expr(rhs);
@@ -316,7 +331,6 @@ impl Compiler {
                 self.bytecode_program.write_instruction(instr);
             }
             Expr::ExprLeaf(expr_leaf) => {
-                // TODO: use OP_FALSE and OP_TRUE for bool vals
                 let val = ExprLeaf::to_value(expr_leaf);
                 let idx = self.bytecode_program.push_constant(val);
                 self.bytecode_program

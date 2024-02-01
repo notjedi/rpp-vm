@@ -39,8 +39,8 @@ fn main() -> Result<()> {
             } KATHAM KATHAM;
             DOT "out of the if statement, ix is now =" ix;
 
+            !! TODO: support for statements
             !! TODO: support break statements
-            !! TODO: error when same variable is declared again in same scope
 
             AANDAVAN SOLLRAN temp ARUNACHALAM SEIYARAN 0;
             BABA COUNTING STARTS temp < 2 {
