@@ -37,11 +37,8 @@ fn main() -> Result<()> {
             } KATHAM KATHAM;
             DOT "out of the if statement, ix is now =" ix;
 
-            !! TODO: test if scopes work
             !! TODO: support break statements
-            !! TODO: program should have a net stack effect of 0
-            !! TODO: declaring the same variable in the same scope again = should we allow it?
-            !! how does the stack get affected?
+            !! TODO: error when same variable is declared again in same scope
 
             AANDAVAN SOLLRAN temp ARUNACHALAM SEIYARAN 0;
             BABA COUNTING STARTS temp < 2 {
