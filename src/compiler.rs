@@ -314,7 +314,7 @@ impl Compiler {
                 self.begin_scope();
                 if let Expr::ExprLeaf(ExprLeaf::Int(_)) = start_expr {
                     let start_expr_declare = StmtKind::Declare {
-                        lhs: Box::new(String::from("for_var_special")),
+                        lhs: Box::new(String::from("for_var_start_special")),
                         rhs: Box::new(start_expr.clone()),
                     };
                     self.eval_stmt(&start_expr_declare);
@@ -324,7 +324,17 @@ impl Compiler {
                 } else {
                     self.eval_expr(&start_expr);
                 }
-                self.eval_expr(&end_expr);
+                if let Expr::ExprLeaf(ExprLeaf::Int(_)) = end_expr {
+                    let end_expr_declare = StmtKind::Declare {
+                        lhs: Box::new(String::from("for_var_end_special")),
+                        rhs: Box::new(end_expr.clone()),
+                    };
+                    self.eval_stmt(&end_expr_declare);
+                    self.bytecode_program
+                        .write_instruction(Instruction::GetLocal(self.locals.len() - 1));
+                } else {
+                    self.eval_expr(&end_expr);
+                }
                 self.bytecode_program.write_instruction(Instruction::Less);
                 let exit_jump = self.emit_jump(Instruction::JumpIfFalse(0));
 
@@ -338,10 +348,12 @@ impl Compiler {
                 // incr the start var
                 let incr_stmt = match &(**start) {
                     ForVar::Int(int_val) => StmtKind::Assign {
-                        lhs: Box::new(String::from("for_var_special")),
+                        lhs: Box::new(String::from("for_var_start_special")),
                         rhs: Box::new(Expr::BinaryExpr {
                             op: BinaryOp::Add,
-                            lhs: Box::new(Expr::Ident(Box::new(String::from("for_var_special")))),
+                            lhs: Box::new(Expr::Ident(Box::new(String::from(
+                                "for_var_start_special",
+                            )))),
                             rhs: Box::new(incr_expr),
                         }),
                     },
