@@ -175,8 +175,11 @@ impl Vm {
                 }
                 Instruction::Return => {
                     if self.call_stack.len() > 1 {
+                        let result = self.pop_stack();
                         let val_stack_offset = self.current_frame().stack_offset;
                         self.call_stack.pop();
+                        self.value_stack.truncate(val_stack_offset);
+                        self.value_stack.push(result);
                     } else {
                         return;
                     }

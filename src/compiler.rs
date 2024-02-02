@@ -109,6 +109,9 @@ impl Compiler {
             match func_compiler.bytecode_program.instructions.last() {
                 Some(Instruction::Return) => {}
                 _ => {
+                    let idx = self.bytecode_program.push_constant(Value::Unit);
+                    self.bytecode_program
+                        .write_instruction(Instruction::Constant(idx));
                     func_compiler
                         .bytecode_program
                         .instructions
@@ -324,17 +327,18 @@ impl Compiler {
                 var_name,
                 func_name,
             } => {
-                // self.bytecode_program
-                //     .write_instruction(Instruction::Method(idx));
-                // let idx = self
-                //     .bytecode_program
-                //     .push_constant(Value::Str(func_name.clone().into()));
-                // self.locals.push(Local {
-                //     name: var_name.clone(),
-                //     depth: self.scope_depth,
-                // });
-                // self.bytecode_program
-                //     .write_instruction(Instruction::SetLocal(self.locals.len() - 1));
+                let idx = self
+                    .bytecode_program
+                    .push_constant(Value::Str(func_name.clone().into()));
+                self.bytecode_program
+                    .write_instruction(Instruction::Method(idx));
+
+                self.locals.push(Local {
+                    name: var_name.clone(),
+                    depth: self.scope_depth,
+                });
+                self.bytecode_program
+                    .write_instruction(Instruction::SetLocal(self.locals.len() - 1));
             }
             StmtKind::IfCond {
                 condition,
