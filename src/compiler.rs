@@ -3,12 +3,13 @@ use crate::{
     parser::{BinaryOp, Expr, ExprLeaf, ForVar, LogicalOp, Program, StmtKind},
 };
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub(crate) enum Instruction {
     Add,
     Constant(usize),
     Divide,
     Equal,
+    GetGlobal(usize),
     GetLocal(usize),
     Greater,
     Jump(usize),
@@ -22,17 +23,18 @@ pub(crate) enum Instruction {
     Pop,
     Print,
     Return,
+    SetGlobal(usize),
     SetLocal(usize),
     Substract,
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct CompiledProgram {
+pub(crate) struct Bytecode {
     pub(crate) constants: Vec<Value>,
     pub(crate) instructions: Vec<Instruction>,
 }
 
-impl CompiledProgram {
+impl Bytecode {
     pub(crate) fn new() -> Self {
         Self {
             constants: vec![],
@@ -52,15 +54,15 @@ impl CompiledProgram {
 
 #[derive(Clone, Debug)]
 pub(crate) struct ProgFunction {
-    name: Box<String>,
-    program: Vec<Instruction>,
+    pub(crate) name: Box<String>,
+    pub(crate) bytecode: Bytecode,
 }
 
 impl ProgFunction {
     pub(crate) fn new(name: &str) -> Self {
         Self {
             name: Box::new(name.to_string()),
-            program: vec![],
+            bytecode: Bytecode::new(),
         }
     }
 }
@@ -72,7 +74,7 @@ pub(crate) struct Local {
 }
 
 pub(crate) struct Compiler {
-    bytecode_program: CompiledProgram,
+    bytecode_program: Bytecode,
     locals: Vec<Local>,
     scope_depth: usize,
     seen_break_stmt: bool,
@@ -82,7 +84,7 @@ pub(crate) struct Compiler {
 impl Compiler {
     pub(crate) fn new() -> Self {
         Self {
-            bytecode_program: CompiledProgram::new(),
+            bytecode_program: Bytecode::new(),
             locals: vec![],
             scope_depth: 0,
             seen_break_stmt: false,
@@ -90,10 +92,13 @@ impl Compiler {
         }
     }
 
-    pub(crate) fn compile_program(mut self, program: &Program) -> CompiledProgram {
+    pub(crate) fn compile_program(mut self, program: &Program) -> ProgFunction {
         self.eval_stmts(&program.main_stmts);
         self.bytecode_program.write_instruction(Instruction::Return);
-        self.bytecode_program
+        ProgFunction {
+            name: "_mainspeical".to_string().into(),
+            bytecode: self.bytecode_program,
+        }
     }
 
     fn eval_stmts(&mut self, stmts: &Vec<StmtKind>) {
