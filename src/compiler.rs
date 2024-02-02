@@ -311,6 +311,7 @@ impl Compiler {
                 let incr_expr = Expr::ExprLeaf(ExprLeaf::Int(1));
 
                 // setup instructions for the condition expr
+                self.begin_scope();
                 if let Expr::ExprLeaf(ExprLeaf::Int(_)) = start_expr {
                     let start_expr_declare = StmtKind::Declare {
                         lhs: Box::new(String::from("for_var_special")),
@@ -362,6 +363,8 @@ impl Compiler {
                     .write_instruction(Instruction::Loop(loop_offset));
                 self.patch_jump(exit_jump);
 
+                // remove the `for_var_special` if we had declared it
+                self.end_scope();
                 // 1st stmt after exiting the loop, pop the comparision result
                 self.bytecode_program.write_instruction(Instruction::Pop);
             }
