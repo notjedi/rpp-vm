@@ -76,6 +76,7 @@ pub(crate) struct Compiler {
     locals: Vec<Local>,
     scope_depth: usize,
     seen_break_stmt: bool,
+    loop_start_depth: usize,
 }
 
 impl Compiler {
@@ -85,6 +86,7 @@ impl Compiler {
             locals: vec![],
             scope_depth: 0,
             seen_break_stmt: false,
+            loop_start_depth: 0,
         }
     }
 
@@ -95,8 +97,13 @@ impl Compiler {
     }
 
     fn eval_stmts(&mut self, stmts: &Vec<StmtKind>) {
+        let seen_break_stmt = self.seen_break_stmt;
+        let loop_start_depth = self.loop_start_depth;
         for stmt in stmts.iter() {
             let start_len = self.instructions_len();
+            if matches!(&stmt, StmtKind::WhileLoop { .. } | StmtKind::ForLoop { .. }) {
+                self.loop_start_depth = self.scope_depth;
+            }
             self.eval_stmt(stmt);
             match stmt {
                 StmtKind::Expr(_) => self.bytecode_program.write_instruction(Instruction::Pop),
@@ -113,7 +120,8 @@ impl Compiler {
                                 *instr = Instruction::Jump(final_len - (i + start_len));
                             }
                         }
-                        self.seen_break_stmt = false;
+                        self.seen_break_stmt = seen_break_stmt;
+                        self.loop_start_depth = loop_start_depth;
                     }
                 }
                 _ => {}
@@ -206,6 +214,15 @@ impl Compiler {
     fn eval_stmt(&mut self, stmt: &StmtKind) {
         match stmt {
             StmtKind::BreakLoop => {
+                let mut count = 0;
+                for local in self.locals.iter().rev() {
+                    if local.depth > self.loop_start_depth {
+                        count += 1;
+                        self.bytecode_program.write_instruction(Instruction::Pop);
+                    } else {
+                        break;
+                    }
+                }
                 self.bytecode_program
                     .write_instruction(Instruction::Jump(0));
                 self.seen_break_stmt = true;

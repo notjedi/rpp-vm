@@ -65,6 +65,7 @@ fn main() -> Result<()> {
             BABA COUNTING STARTS True {
                 DOT chumma;
                 chumma BHAJJI SAAPDU chumma + 1;
+                AANDAVAN SOLLRAN hi_test ARUNACHALAM SEIYARAN 0;
                 EN PEAR MANICKAM chumma >= 5 {
                     DOT "breaking out of loop...";
                     BLACK SHEEP;
