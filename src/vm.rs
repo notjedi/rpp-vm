@@ -1,10 +1,14 @@
 use std::collections::HashMap;
 
 use crate::{
-    compiler::{Instruction, ProgFunction},
+    compiler::{Bytecode, Instruction, ProgFunction},
     interpreter::Value,
 };
 
+// TODO: how does python go about this?
+// there is a local variable with same name as global function
+// 1. user tries to mutate the local variable using the same identifier
+// 2. user tries to call the global function using the same identifier
 #[derive(Debug)]
 pub(crate) struct CallFrame {
     program: ProgFunction,
@@ -48,6 +52,10 @@ impl Vm {
         self.current_frame_mut().ip -= offset;
     }
 
+    fn current_bytecode(&self) -> &Bytecode {
+        &self.current_frame().program.bytecode
+    }
+
     pub(crate) fn interpret(&mut self, program: &ProgFunction) {
         self.call_stack.push(CallFrame {
             program: program.clone(),
@@ -55,7 +63,7 @@ impl Vm {
             ip: 0,
         });
         loop {
-            let instr = self.current_frame().program.bytecode.instructions[self.current_frame().ip];
+            let instr = self.current_bytecode().instructions[self.current_frame().ip];
             match instr {
                 Instruction::Add => {
                     let b = self.pop_stack();
@@ -65,7 +73,7 @@ impl Vm {
                 }
                 Instruction::Constant(idx) => {
                     // TODO: bro, i need to find a way out of clones
-                    let val = self.current_frame().program.bytecode.constants[idx].clone();
+                    let val = self.current_bytecode().constants[idx].clone();
                     self.value_stack.push(val);
                 }
                 Instruction::Divide => {
@@ -75,7 +83,16 @@ impl Vm {
                     self.value_stack.push(res);
                 }
                 Instruction::Equal => todo!(),
-                Instruction::GetGlobal(idx) => todo!(),
+                Instruction::GetGlobal(idx) => {
+                    let global_name = self.current_bytecode().constants[idx].clone();
+                    if let Value::Str(name) = global_name {
+                        if let Some(val) = self.globals.get(&(*name)) {
+                            self.value_stack.push(val.clone());
+                        } else {
+                            todo!("return runtime time error")
+                        }
+                    }
+                }
                 Instruction::GetLocal(idx) => {
                     let stack_offset = self.current_frame().stack_offset;
                     self.value_stack
@@ -111,7 +128,25 @@ impl Vm {
                     self.dec_ip(offset);
                     continue;
                 }
-                Instruction::Method(_) => todo!(),
+                Instruction::Method(idx) => {
+                    let func_name = &self.current_bytecode().constants[idx];
+                    if let Value::Str(name) = func_name {
+                        let func_val = self
+                            .globals
+                            .get(&(**name))
+                            .expect("can't find function")
+                            .clone();
+                        if let Value::ProgFunction(func) = func_val {
+                            let func_call_frame = CallFrame {
+                                program: func,
+                                stack_offset: self.value_stack.len(),
+                                ip: 0,
+                            };
+                            self.call_stack.push(func_call_frame);
+                            continue;
+                        }
+                    }
+                }
                 Instruction::Mod => {
                     let b = self.pop_stack();
                     let a = self.pop_stack();
@@ -139,9 +174,27 @@ impl Vm {
                     println!("{}", str_val.to_string());
                 }
                 Instruction::Return => {
-                    return;
+                    if self.call_stack.len() > 1 {
+                        let val_stack_offset = self.current_frame().stack_offset;
+                        self.call_stack.pop();
+                    } else {
+                        return;
+                    }
                 }
-                Instruction::SetGlobal(idx) => todo!(),
+                Instruction::SetGlobal(idx) => {
+                    let glob_name = self.current_bytecode().constants[idx].clone();
+                    let val = self.pop_stack();
+                    if let Value::Str(name) = glob_name {
+                        match self.globals.get_mut(&(**name)) {
+                            Some(entry) => {
+                                *entry = val;
+                            }
+                            None => {
+                                self.globals.insert(name.to_string(), val);
+                            }
+                        }
+                    }
+                }
                 Instruction::SetLocal(idx) => {
                     let stack_offset = self.current_frame().stack_offset;
                     self.value_stack[stack_offset + idx] =

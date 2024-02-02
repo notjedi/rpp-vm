@@ -25,64 +25,67 @@ fn main() -> Result<()> {
     color_eyre::install()?;
     let program = r#"
         EN VAZHI THANI VAZHI myfunc_one
-            25 + 15;
+            DOT "hi from myfunc_one func";
         MARAKKADHINGA
 
         LAKSHMI START
-            AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 0;
-            EN PEAR MANICKAM ix >= 5 {
-                AANDAVAN SOLLRAN hii ARUNACHALAM SEIYARAN 0;
-                DOT "ix is not less than 5";
-            } ENAKKU INNURU PEAR IRUKKU {
-                AANDAVAN SOLLRAN hii ARUNACHALAM SEIYARAN 0;
-                DOT "ix is less than 5";
-            } KATHAM KATHAM;
-            DOT "out of the if statement, ix is now =" ix;
+            CHUMMA ADHURUDHULA myfunc_one;
+            !! y CHUMMA ADHURUDHULA myfunc_one;
 
-            DOT;
+            !! AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 0;
+            !! EN PEAR MANICKAM ix >= 5 {
+            !!     AANDAVAN SOLLRAN hii ARUNACHALAM SEIYARAN 0;
+            !!     DOT "ix is not less than 5";
+            !! } ENAKKU INNURU PEAR IRUKKU {
+            !!     AANDAVAN SOLLRAN hii ARUNACHALAM SEIYARAN 0;
+            !!     DOT "ix is less than 5";
+            !! } KATHAM KATHAM;
+            !! DOT "out of the if statement, ix is now =" ix;
 
-            AANDAVAN SOLLRAN temp ARUNACHALAM SEIYARAN 0;
-            BABA COUNTING STARTS temp < 2 {
-                AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 0;
-                BABA COUNTING STARTS ix < 5 {
-                    DOT ix;
-                    ix BHAJJI SAAPDU ix + 1;
-                } KATHAM KATHAM;
-                temp BHAJJI SAAPDU temp + 1;
-                DOT "done with outer loop";
-            } KATHAM KATHAM;
+            !! DOT;
 
-            DOT;
+            !! AANDAVAN SOLLRAN temp ARUNACHALAM SEIYARAN 0;
+            !! BABA COUNTING STARTS temp < 2 {
+            !!     AANDAVAN SOLLRAN ix ARUNACHALAM SEIYARAN 0;
+            !!     BABA COUNTING STARTS ix < 5 {
+            !!         DOT ix;
+            !!         ix BHAJJI SAAPDU ix + 1;
+            !!     } KATHAM KATHAM;
+            !!     temp BHAJJI SAAPDU temp + 1;
+            !!     DOT "done with outer loop";
+            !! } KATHAM KATHAM;
 
-            AANDAVAN SOLLRAN range ARUNACHALAM SEIYARAN 5;
-            NAA 1 THADAVA SONNA range THADAVA SONNA MADHRI {
-                DOT "Hi from for stmt";
-            } KATHAM KATHAM;
+            !! DOT;
 
-            DOT;
+            !! AANDAVAN SOLLRAN range ARUNACHALAM SEIYARAN 5;
+            !! NAA 1 THADAVA SONNA range THADAVA SONNA MADHRI {
+            !!     DOT "Hi from for stmt";
+            !! } KATHAM KATHAM;
 
-            AANDAVAN SOLLRAN chumma ARUNACHALAM SEIYARAN 0;
-            BABA COUNTING STARTS True {
-                DOT chumma;
-                chumma BHAJJI SAAPDU chumma + 1;
-                AANDAVAN SOLLRAN hi_test ARUNACHALAM SEIYARAN 0;
-                EN PEAR MANICKAM chumma >= 5 {
-                    DOT "breaking out of loop...";
-                    BLACK SHEEP;
-                } KATHAM KATHAM;
-            } KATHAM KATHAM;
+            !! DOT;
 
-            DOT;
+            !! AANDAVAN SOLLRAN chumma ARUNACHALAM SEIYARAN 0;
+            !! BABA COUNTING STARTS True {
+            !!     DOT chumma;
+            !!     chumma BHAJJI SAAPDU chumma + 1;
+            !!     AANDAVAN SOLLRAN hi_test ARUNACHALAM SEIYARAN 0;
+            !!     EN PEAR MANICKAM chumma >= 5 {
+            !!         DOT "breaking out of loop...";
+            !!         BLACK SHEEP;
+            !!     } KATHAM KATHAM;
+            !! } KATHAM KATHAM;
 
-            AANDAVAN SOLLRAN start ARUNACHALAM SEIYARAN 0;
-            AANDAVAN SOLLRAN next_range ARUNACHALAM SEIYARAN 5;
-            NAA start THADAVA SONNA next_range THADAVA SONNA MADHRI {
-                DOT start;
-                EN PEAR MANICKAM start >= 2 {
-                    DOT "breaking out of loop...";
-                    BLACK SHEEP;
-                } KATHAM KATHAM;
-            } KATHAM KATHAM;
+            !! DOT;
+
+            !! AANDAVAN SOLLRAN start ARUNACHALAM SEIYARAN 0;
+            !! AANDAVAN SOLLRAN next_range ARUNACHALAM SEIYARAN 5;
+            !! NAA start THADAVA SONNA next_range THADAVA SONNA MADHRI {
+            !!     DOT start;
+            !!     EN PEAR MANICKAM start >= 2 {
+            !!         DOT "breaking out of loop...";
+            !!         BLACK SHEEP;
+            !!     } KATHAM KATHAM;
+            !! } KATHAM KATHAM;
         MAGIZHCHI
     "#;
 

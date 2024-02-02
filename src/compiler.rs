@@ -93,11 +93,42 @@ impl Compiler {
     }
 
     pub(crate) fn compile_program(mut self, program: &Program) -> ProgFunction {
+        self.eval_functions(program);
         self.eval_stmts(&program.main_stmts);
         self.bytecode_program.write_instruction(Instruction::Return);
         ProgFunction {
             name: "_mainspeical".to_string().into(),
             bytecode: self.bytecode_program,
+        }
+    }
+
+    pub(crate) fn eval_functions(&mut self, program: &Program) {
+        for func in program.functions.iter() {
+            let mut func_compiler = Compiler::new();
+            func_compiler.eval_stmts(&func.body);
+            match func_compiler.bytecode_program.instructions.last() {
+                Some(Instruction::Return) => {}
+                _ => {
+                    func_compiler
+                        .bytecode_program
+                        .instructions
+                        .push(Instruction::Return);
+                }
+            }
+            let prog_func = ProgFunction {
+                name: func.name.clone().into(),
+                bytecode: func_compiler.bytecode_program,
+            };
+            let name_idx = self
+                .bytecode_program
+                .push_constant(Value::Str(func.name.clone()));
+            let prog_idx = self
+                .bytecode_program
+                .push_constant(Value::ProgFunction(prog_func));
+            self.bytecode_program
+                .write_instruction(Instruction::Constant(prog_idx));
+            self.bytecode_program
+                .write_instruction(Instruction::SetGlobal(name_idx));
         }
     }
 
@@ -253,14 +284,17 @@ impl Compiler {
                 }
                 self.bytecode_program.write_instruction(Instruction::Print);
             }
-            StmtKind::FuncCall(func_name) => match self.get_idx_of_func(func_name) {
-                Some(idx) => {
-                    self.bytecode_program
-                        .write_instruction(Instruction::Method(idx));
-                }
-                None => todo!("return compile time error"),
-            },
-            StmtKind::FuncReturn(_) => todo!(),
+            StmtKind::FuncCall(func_name) => {
+                let idx = self
+                    .bytecode_program
+                    .push_constant(Value::Str(func_name.clone().into()));
+                self.bytecode_program
+                    .write_instruction(Instruction::Method(idx));
+            }
+            StmtKind::FuncReturn(expr) => {
+                // TODO: get back to this
+                self.eval_expr(expr);
+            }
             StmtKind::Declare { lhs, rhs } => {
                 match self.check_if_var_in_scope(lhs) {
                     true => todo!("return compile time error"),
@@ -289,7 +323,19 @@ impl Compiler {
             StmtKind::AssignFuncCall {
                 var_name,
                 func_name,
-            } => todo!(),
+            } => {
+                // self.bytecode_program
+                //     .write_instruction(Instruction::Method(idx));
+                // let idx = self
+                //     .bytecode_program
+                //     .push_constant(Value::Str(func_name.clone().into()));
+                // self.locals.push(Local {
+                //     name: var_name.clone(),
+                //     depth: self.scope_depth,
+                // });
+                // self.bytecode_program
+                //     .write_instruction(Instruction::SetLocal(self.locals.len() - 1));
+            }
             StmtKind::IfCond {
                 condition,
                 body,
