@@ -1,11 +1,11 @@
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) enum Literal {
+pub(crate) enum Literal<'a> {
     BoolTrue,
     BoolFalse,
     Int(i64),
     Float(f64),
     Char(char),
-    Str(String),
+    Str(&'a str),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -96,31 +96,39 @@ impl KeyWord {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) enum TokenKind {
+pub(crate) enum TokenKind<'a> {
     Eof,
-    Ident(String),
-    Comment(String),
+    Ident(&'a str),
+    Comment(&'a str),
     KeyWord(KeyWord),
-    Literal(Literal),
+    Literal(Literal<'a>),
 }
 
-impl Default for TokenKind {
+impl<'a> Default for TokenKind<'a> {
     fn default() -> Self {
         Self::Eof
     }
 }
 
-impl Default for &TokenKind {
-    fn default() -> &'static TokenKind {
+impl<'a> Default for &TokenKind<'_> {
+    fn default() -> &'static TokenKind<'static> {
         &TokenKind::Eof
     }
 }
 
-impl From<KeyWord> for TokenKind {
-    fn from(val: KeyWord) -> Self {
+impl<'a> From<KeyWord> for TokenKind<'a> {
+    fn from(val: KeyWord) -> TokenKind<'a> {
         TokenKind::KeyWord(val)
     }
 }
+
+// impl<'a> From<KeyWord> for &TokenKind<'_> {
+//     fn from(val: KeyWord) -> &'static TokenKind<'static> {
+//         let static_val: &'static TokenKind = &TokenKind::KeyWord(val);
+//         static_val
+// let static_str: &'static str = "This is a static string";
+//     }
+// }
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct Span {
@@ -130,7 +138,7 @@ pub(crate) struct Span {
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct Token {
-    pub(crate) kind: TokenKind,
+pub(crate) struct Token<'a> {
+    pub(crate) kind: TokenKind<'a>,
     pub(crate) span: Span,
 }
