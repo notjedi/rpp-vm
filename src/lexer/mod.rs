@@ -1,8 +1,8 @@
 mod tokens;
-use color_eyre::eyre::Result;
 pub(crate) use tokens::{KeyWord, Literal, Span, Token, TokenKind};
 
-use std::{i64, iter::Peekable, str::Chars};
+use color_eyre::eyre::Result;
+use std::{i64, str::Chars};
 use thiserror::Error;
 
 #[derive(Clone, Debug, Error)]
@@ -17,21 +17,27 @@ pub(crate) enum LexError {
 type LResult<T> = Result<T, LexError>;
 
 pub(crate) struct Lexer<'a> {
-    input: Peekable<Chars<'a>>,
+    input: Chars<'a>,
+    input_str: &'a str,
+    peeked: Option<Option<char>>,
     row: usize,
     col: usize,
+    current_pos: usize,
 }
 
 impl<'a> Lexer<'a> {
     pub(crate) fn new(input: &'a str) -> Self {
         Self {
-            input: input.chars().peekable(),
+            input: input.chars(),
+            input_str: input,
+            peeked: None,
             row: 0,
             col: 0,
+            current_pos: 0,
         }
     }
 
-    pub(crate) fn tokensize(&mut self) -> LResult<Vec<Token>> {
+    pub(crate) fn tokenize(&mut self) -> LResult<Vec<Token<'a>>> {
         let mut tokens = Vec::new();
         loop {
             let token = self.advance_token()?;
@@ -43,15 +49,20 @@ impl<'a> Lexer<'a> {
         Ok(tokens)
     }
 
-    pub(crate) fn tokenize_str(program: &str) -> LResult<Vec<Token>> {
+    pub(crate) fn tokenize_str(program: &'a str) -> LResult<Vec<Token<'a>>> {
         let mut lexer = Lexer::new(program);
-        lexer.tokensize()
+        lexer.skip_whitespace();
+        lexer.tokenize()
     }
 
     #[inline]
     fn consume(&mut self) -> Option<char> {
-        let ch = self.input.next();
+        let ch = match self.peeked.take() {
+            Some(v) => v,
+            None => self.input.next(),
+        };
         if let Some(ch) = ch {
+            self.current_pos += ch.len_utf8();
             if ch == '\n' {
                 self.row += 1;
                 self.col = 0
@@ -64,22 +75,22 @@ impl<'a> Lexer<'a> {
 
     #[inline]
     #[must_use]
-    fn peek(&mut self) -> Option<char> {
-        self.input.peek().copied()
+    fn peek(&mut self) -> Option<&char> {
+        let iter = &mut self.input;
+        self.peeked.get_or_insert_with(|| iter.next()).as_ref()
     }
 
     #[inline]
-    fn take_while(&mut self, predicate: impl Fn(&char) -> bool) -> String {
-        let mut string = String::with_capacity(64);
+    fn take_while(&mut self, predicate: impl Fn(&char) -> bool) -> &'a str {
+        let prev_pos = self.current_pos;
         while let Some(ch) = self.peek() {
-            if predicate(&ch) {
+            if predicate(ch) {
                 self.consume();
-                string.push(ch);
             } else {
                 break;
             }
         }
-        string
+        &self.input_str[prev_pos..self.current_pos]
     }
 
     #[inline]
@@ -87,25 +98,22 @@ impl<'a> Lexer<'a> {
         self.take_while(|&ch| ch.is_ascii_whitespace());
     }
 
-    fn eat_number(&mut self) -> TokenKind {
+    fn eat_number(&mut self) -> TokenKind<'a> {
         let mut has_dot = false;
-        let mut num_str = String::with_capacity(64);
+        let prev_pos = self.current_pos;
 
-        while let Some(ch) = self.peek() {
+        while let Some(&ch) = self.peek() {
             if ch.is_ascii_digit() {
                 self.consume();
             } else if ch == '.' && !has_dot {
                 self.consume();
                 has_dot = true;
-            } else if ch == '_' {
-                // NOTE: _ b/w numbers is not in the grammar afaik but we'll add it
-                continue;
             } else {
                 break;
             }
-            num_str.push(ch);
         }
 
+        let num_str = &self.input_str[prev_pos..self.current_pos];
         // SAFETY: it's safe to unwrap here because we've made sure that the array only has digits and at max of one `.`
         if has_dot {
             let num = num_str.parse::<f64>().unwrap();
@@ -116,7 +124,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn eat_literal_str(&mut self) -> LResult<String> {
+    fn eat_literal_str(&mut self) -> LResult<&'a str> {
         // NOTE: does not support `"` inside the string
         self.consume();
         let line = self.take_while(|&ch| ch != '"');
@@ -128,7 +136,7 @@ impl<'a> Lexer<'a> {
             }
             ch => Err(LexError::MissingExpectedChar {
                 expected: '"',
-                found: ch.unwrap_or_default(),
+                found: ch.copied().unwrap_or_default(),
             }),
         }
     }
@@ -145,18 +153,18 @@ impl<'a> Lexer<'a> {
             }
             peek_ch => Err(LexError::MissingExpectedChar {
                 expected: '\'',
-                found: peek_ch.unwrap_or_default(),
+                found: peek_ch.copied().unwrap_or_default(),
             }),
         }
     }
 
     #[inline]
-    fn eat_line(&mut self) -> String {
+    fn eat_line(&mut self) -> &'a str {
         self.take_while(|&ch| ch != '\n')
     }
 
     #[inline]
-    fn eat_ident(&mut self) -> String {
+    fn eat_ident(&mut self) -> &'a str {
         let ident = self.take_while(|&ch| ch.is_ascii_alphabetic() || ch == '_');
         if let Some(' ') = self.peek() {
             self.consume();
@@ -174,10 +182,10 @@ impl<'a> Lexer<'a> {
     fn eat_potential_double_char_op(
         &mut self,
         expected: char,
-        one_char_kind: TokenKind,
-        double_char_kind: TokenKind,
-    ) -> TokenKind {
-        if let Some(next) = self.peek() {
+        one_char_kind: TokenKind<'a>,
+        double_char_kind: TokenKind<'a>,
+    ) -> TokenKind<'a> {
+        if let Some(&next) = self.peek() {
             if next == expected {
                 self.consume();
                 return double_char_kind;
@@ -190,9 +198,9 @@ impl<'a> Lexer<'a> {
     fn eat_potential_double_char_or_err(
         &mut self,
         expected: char,
-        token: TokenKind,
-    ) -> LResult<TokenKind> {
-        if let Some(found) = self.peek() {
+        token: TokenKind<'a>,
+    ) -> LResult<TokenKind<'a>> {
+        if let Some(&found) = self.peek() {
             if found == expected {
                 self.consume();
                 return Ok(token);
@@ -202,7 +210,7 @@ impl<'a> Lexer<'a> {
         Err(LexError::UnexpectedChar(char::default()))
     }
 
-    fn eat_punctuation(&mut self) -> LResult<TokenKind> {
+    fn eat_punctuation(&mut self) -> LResult<TokenKind<'a>> {
         let ch = self.consume().unwrap();
 
         let token = match ch {
@@ -236,7 +244,7 @@ impl<'a> Lexer<'a> {
                         self.consume();
                         TokenKind::Comment(self.eat_line())
                     }
-                    ch => return Err(LexError::UnexpectedChar(ch.unwrap_or_default())),
+                    ch => return Err(LexError::UnexpectedChar(ch.copied().unwrap_or_default())),
                 },
             },
 
@@ -316,7 +324,7 @@ impl<'a> Lexer<'a> {
         })
     }
 
-    fn match_keyword(&mut self) -> TokenKind {
+    fn match_keyword(&mut self) -> TokenKind<'a> {
         // NOTE: there is a difference b/w `or` and `or_else`, use only `or_else`.
         // with `or` you are supposed to give it an Option which gets evaluated before anything even begins.
         // but with `or_else`, it's a function which will be called only when the result is None.
@@ -328,7 +336,7 @@ impl<'a> Lexer<'a> {
         kw.map_or_else(|| TokenKind::Ident(self.eat_ident()), TokenKind::KeyWord)
     }
 
-    pub(crate) fn advance_token(&mut self) -> LResult<Token> {
+    pub(crate) fn advance_token(&mut self) -> LResult<Token<'a>> {
         self.skip_whitespace();
         let (start_row, start_col) = (self.row, self.col);
         let ch = match self.peek() {
@@ -371,7 +379,7 @@ impl<'a> Lexer<'a> {
         use std::collections::VecDeque;
 
         let mut lexer = Self::new(input);
-        let tokens = lexer.tokensize()?;
+        let tokens = lexer.tokenize()?;
         let mut tokens = VecDeque::from(tokens);
 
         let mut output = String::new();
