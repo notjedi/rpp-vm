@@ -67,7 +67,7 @@ impl<'a> Lexer<'a> {
                 self.row += 1;
                 self.col = 0
             } else {
-                self.col += 1;
+                self.col += ch.len_utf8();
             }
         }
         ch
@@ -166,17 +166,19 @@ impl<'a> Lexer<'a> {
     #[inline]
     fn eat_ident(&mut self) -> &'a str {
         let ident = self.take_while(|&ch| ch.is_ascii_alphabetic() || ch == '_');
-        if let Some(' ') = self.peek() {
-            self.consume();
-        }
         ident
     }
 
     #[inline]
     fn eat_n_idents(&mut self, n: u32) {
-        (0..n).for_each(|_| {
+        for i in 0..n {
             self.eat_ident();
-        })
+            if i < n - 1
+                && let Some(' ') = self.peek()
+            {
+                self.consume();
+            }
+        }
     }
 
     fn eat_potential_double_char_op(
@@ -253,21 +255,25 @@ impl<'a> Lexer<'a> {
         Ok(token)
     }
 
-    fn peek_n_words(&self, n: u32) -> String {
+    fn peek_n_words(&self, n: u32) -> &'a str {
         let mut num_spaces = 0;
-        self.input
-            .clone()
-            .take_while(|&ch| {
-                if ch == ' ' {
-                    num_spaces += 1;
-                }
-                (ch.is_ascii_alphabetic() || ch == '_' || ch == ' ') && num_spaces <= (n - 1)
-            })
-            .collect::<String>()
+        let mut count = 0;
+        for ch in self.input_str[self.current_pos..].chars() {
+            if ch == ' ' {
+                num_spaces += 1;
+            }
+
+            if (ch.is_alphabetic() || ch == '_' || ch == ' ') && num_spaces < n {
+                count += ch.len_utf8();
+            } else {
+                break;
+            }
+        }
+        &self.input_str[self.current_pos..self.current_pos + count]
     }
 
     fn match_potential_single_word_kw(&mut self) -> Option<KeyWord> {
-        let kw = match self.peek_n_words(1).as_str() {
+        let kw = match self.peek_n_words(1) {
             const { KeyWord::Print.as_str() } => KeyWord::Print.into(),
             const { KeyWord::EndFunc.as_str() } => KeyWord::EndFunc.into(),
             const { KeyWord::ForStart.as_str() } => KeyWord::ForStart.into(),
@@ -281,7 +287,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn match_potential_double_word_kw(&mut self) -> Option<KeyWord> {
-        let kw = match self.peek_n_words(2).as_str() {
+        let kw = match self.peek_n_words(2) {
             const { KeyWord::Assign.as_str() } => KeyWord::Assign.into(),
             const { KeyWord::Declare.as_str() } => KeyWord::Declare.into(),
             const { KeyWord::EndBlock.as_str() } => KeyWord::EndBlock.into(),
@@ -299,7 +305,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn match_potential_triple_word_kw(&mut self) -> Option<KeyWord> {
-        let kw = match self.peek_n_words(3).as_str() {
+        let kw = match self.peek_n_words(3) {
             const { KeyWord::IfCond.as_str() } => KeyWord::IfCond.into(),
             const { KeyWord::WhileLoop.as_str() } => KeyWord::WhileLoop.into(),
             const { KeyWord::FuncReturn.as_str() } => KeyWord::FuncReturn.into(),
@@ -313,7 +319,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn match_potential_four_word_kw(&mut self) -> Option<KeyWord> {
-        let kw = match self.peek_n_words(4).as_str() {
+        let kw = match self.peek_n_words(4) {
             const { KeyWord::ElseCond.as_str() } => KeyWord::ElseCond.into(),
             const { KeyWord::FuncDeclare.as_str() } => KeyWord::FuncDeclare.into(),
             _ => None,
@@ -348,7 +354,7 @@ impl<'a> Lexer<'a> {
             '"' => TokenKind::Literal(Literal::Str(self.eat_literal_str()?)),
             '\'' => TokenKind::Literal(Literal::Char(self.eat_literal_char()?)),
             '0'..='9' => self.eat_number(),
-            'a'..='z' | 'A'..='Z' | '_' => match self.peek_n_words(1).as_str() {
+            'a'..='z' | 'A'..='Z' | '_' => match self.peek_n_words(1) {
                 "True" => {
                     self.eat_n_idents(1);
                     TokenKind::Literal(Literal::BoolTrue)
@@ -382,7 +388,7 @@ impl<'a> Lexer<'a> {
         let tokens = lexer.tokenize()?;
         let mut tokens = VecDeque::from(tokens);
 
-        let mut output = String::new();
+        let mut output = String::with_capacity(input.len() * 2);
         for (row, line) in input.lines().enumerate() {
             output += line;
             output += "\n";
