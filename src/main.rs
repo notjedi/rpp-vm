@@ -9,10 +9,13 @@
 // mod compiler;
 // mod interpreter;
 mod lexer;
-// mod parser;
+mod parser;
 // mod vm;
 
-use crate::lexer::Lexer;
+use crate::{
+    lexer::{Lexer, TokenKind},
+    parser::Parser,
+};
 
 use color_eyre::eyre::Result;
 
@@ -27,6 +30,12 @@ fn main() -> Result<()> {
     "#;
 
     let tokens = Lexer::tokenize_str(program)?;
-    dbg!(&tokens);
+    let token_kinds = tokens
+        .into_iter()
+        .map(|tok| tok.kind)
+        .collect::<Vec<TokenKind>>();
+    let parser = Parser::new(&token_kinds);
+    let ast = parser.parse().unwrap();
+    dbg!(ast);
     Ok(())
 }

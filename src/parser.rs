@@ -1,101 +1,106 @@
 use color_eyre::eyre::Result;
-use std::{iter::Peekable, vec::IntoIter};
+use std::cell::RefCell;
 use thiserror::Error;
 
-use crate::{
-    interpreter::{Environment, Value},
-    lexer::{KeyWord, Literal, Token, TokenKind},
-};
+use crate::lexer::{KeyWord, Literal, TokenKind};
 
-type BoxExpr = Box<Expr>;
-type BoxStr = Box<String>;
-type BoxForVar = Box<ForVar>;
-type BoxVecStmtKind = Box<Vec<StmtKind>>;
+type BoxExpr<'a> = Box<Expr<'a>>;
+type BoxForVar<'a> = Box<ForVar<'a>>;
+type BoxVecStmtKind<'a> = Box<Vec<StmtKind<'a>>>;
 
 #[derive(Debug, Error)]
-pub(crate) enum ParseError {
+pub(crate) enum ParseError<'a> {
     #[error("expected: {expected:?}, found: {found:?}")]
     MissingExpectedToken {
-        expected: TokenKind,
-        found: TokenKind,
+        expected: TokenKind<'a>,
+        found: TokenKind<'a>,
     },
     #[error("unexpected token: {0:?}")]
-    UnexpectedToken(TokenKind),
+    UnexpectedToken(TokenKind<'a>),
     #[error("invalid expr: {0:?}")]
-    InvalidExpr(Expr),
+    InvalidExpr(Expr<'a>),
 }
 
-type PResult<T> = Result<T, ParseError>;
+#[derive(Clone, Debug)]
+pub(crate) enum Value<'a> {
+    Unit,
+    Int(i64),
+    Float(f64),
+    Char(char),
+    Bool(bool),
+    #[allow(clippy::box_collection)]
+    Str(&'a str),
+}
 
 #[derive(Clone, Debug)]
-pub(crate) enum ForVar {
+pub(crate) enum ForVar<'a> {
     Int(i64),
     // TODO: no use of float in for loops?
     #[allow(dead_code)]
     Float(f64),
-    Ident(BoxStr),
+    Ident(&'a str),
 }
 
-impl ForVar {
-    pub(crate) fn as_int(&self, env: &Environment) -> Option<i64> {
-        match self {
-            ForVar::Int(val) => Some(*val),
-            ForVar::Float(_) => None,
-            ForVar::Ident(var_name) => {
-                if let Some(Value::Int(val)) = env.get_val_of_var(var_name) {
-                    Some(val)
-                } else {
-                    None
-                }
-            }
-        }
-    }
+// impl<'a> ForVar<'a> {
+//     pub(crate) fn as_int(&self, env: &Environment) -> Option<i64> {
+//         match self {
+//             ForVar::Int(val) => Some(*val),
+//             ForVar::Float(_) => None,
+//             ForVar::Ident(var_name) => {
+//                 if let Some(Value::Int(val)) = env.get_val_of_var(var_name) {
+//                     Some(val)
+//                 } else {
+//                     None
+//                 }
+//             }
+//         }
+//     }
 
-    pub(crate) fn diff(&self, end: &Self, env: &Environment) -> i64 {
-        match (self.as_int(env), end.as_int(env)) {
-            (Some(start), Some(end)) => end - start,
-            _ => 0,
-        }
-    }
-}
+//     pub(crate) fn diff(&self, end: &Self, env: &Environment) -> i64 {
+//         match (self.as_int(env), end.as_int(env)) {
+//             (Some(start), Some(end)) => end - start,
+//             _ => 0,
+//         }
+//     }
+// }
 
 // https://adeschamps.github.io/enum-size
 // https://nnethercote.github.io/perf-book/type-sizes.html
 // https://web.archive.org/web/20230530145515/https://boshen.github.io/javascript-parser-in-rust/docs/ast
 #[derive(Clone, Debug)]
-pub(crate) enum StmtKind {
+pub(crate) enum StmtKind<'a> {
     BreakLoop,
-    Expr(Expr),
+    Expr(Expr<'a>),
     #[allow(dead_code)]
-    Comment(String),
-    Print(Vec<Expr>),
-    FuncCall(String),
-    FuncReturn(Expr),
+    Comment(&'a str),
+    Print(Vec<Expr<'a>>),
+    FuncCall(&'a str),
+    FuncReturn(Expr<'a>),
     Declare {
-        lhs: BoxStr,
-        rhs: BoxExpr,
+        lhs: &'a str,
+        rhs: BoxExpr<'a>,
     },
     Assign {
-        lhs: BoxStr,
-        rhs: BoxExpr,
+        lhs: &'a str,
+        rhs: BoxExpr<'a>,
     },
     AssignFuncCall {
-        var_name: BoxStr,
-        func_name: BoxStr,
+        var_name: &'a str,
+        func_name: &'a str,
     },
     IfCond {
-        condition: BoxExpr,
-        body: BoxVecStmtKind,
-        else_body: BoxVecStmtKind,
+        condition: BoxExpr<'a>,
+        body: BoxVecStmtKind<'a>,
+        else_body: BoxVecStmtKind<'a>,
     },
     ForLoop {
-        start: BoxForVar,
-        end: BoxForVar,
-        body: BoxVecStmtKind,
+        start: BoxForVar<'a>,
+        end: BoxForVar<'a>,
+        body: BoxVecStmtKind<'a>,
     },
     WhileLoop {
-        condition: BoxExpr,
-        body: BoxVecStmtKind,
+        condition: BoxExpr<'a>,
+        body: BoxVecStmtKind<'a>,
     },
 }
 
@@ -148,20 +153,20 @@ impl LogicalOp {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) enum ExprLeaf {
+pub(crate) enum ExprLeaf<'a> {
     BoolTrue,
     BoolFalse,
     Int(i64),
     Float(f64),
     Char(char),
-    Str(BoxStr),
+    Str(&'a str),
 }
 
-impl ExprLeaf {
-    fn from_literal(literal: Literal) -> Self {
-        match literal {
+impl<'a> ExprLeaf<'a> {
+    fn from_literal(literal: &'a Literal<'a>) -> Self {
+        match *literal {
             Literal::Char(ch) => Self::Char(ch),
-            Literal::Str(string) => Self::Str(Box::new(string)),
+            Literal::Str(string) => Self::Str(string),
             Literal::Int(num) => Self::Int(num),
             Literal::Float(num) => Self::Float(num),
             Literal::BoolTrue => Self::BoolTrue,
@@ -169,14 +174,14 @@ impl ExprLeaf {
         }
     }
 
-    pub(crate) fn to_value(expr_leaf: &ExprLeaf) -> Value {
+    pub(crate) fn to_value(expr_leaf: &'a ExprLeaf<'a>) -> Value<'a> {
         match expr_leaf {
             ExprLeaf::BoolTrue => Value::Bool(true),
             ExprLeaf::BoolFalse => Value::Bool(false),
             ExprLeaf::Int(int) => Value::Int(*int),
             ExprLeaf::Float(float) => Value::Float(*float),
             ExprLeaf::Char(ch) => Value::Char(*ch),
-            ExprLeaf::Str(str_val) => Value::Str(Box::clone(str_val)),
+            ExprLeaf::Str(str_val) => Value::Str(str_val),
         }
     }
 }
@@ -188,53 +193,51 @@ pub(crate) enum Op {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) enum Expr {
+pub(crate) enum Expr<'a> {
     BinaryExpr {
         op: BinaryOp,
-        lhs: Box<Expr>,
-        rhs: Box<Expr>,
+        lhs: Box<Expr<'a>>,
+        rhs: Box<Expr<'a>>,
     },
     LogicalExpr {
         op: LogicalOp,
-        lhs: Box<Expr>,
-        rhs: Box<Expr>,
+        lhs: Box<Expr<'a>>,
+        rhs: Box<Expr<'a>>,
     },
     UnaryExpr {
         op: BinaryOp,
-        child: Box<Expr>,
+        child: Box<Expr<'a>>,
     },
-    ExprLeaf(ExprLeaf),
-    Ident(BoxStr),
+    ExprLeaf(ExprLeaf<'a>),
+    Ident(&'a str),
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct Function {
-    pub(crate) name: BoxStr,
-    pub(crate) body: BoxVecStmtKind,
+pub(crate) struct Function<'a> {
+    pub(crate) name: &'a str,
+    pub(crate) body: BoxVecStmtKind<'a>,
 }
 
 #[derive(Debug)]
-pub(crate) struct Program {
-    pub(crate) functions: Vec<Function>,
-    pub(crate) main_stmts: BoxVecStmtKind,
+pub(crate) struct Program<'a> {
+    pub(crate) functions: Vec<Function<'a>>,
+    pub(crate) main_stmts: BoxVecStmtKind<'a>,
 }
 
-pub(crate) struct Parser {
-    tokens: Peekable<IntoIter<TokenKind>>,
+pub(crate) struct Parser<'a> {
+    tokens: &'a [TokenKind<'a>],
+    current_pos: RefCell<usize>,
 }
 
-impl Parser {
-    pub(crate) fn new(tokens: Vec<Token>) -> Self {
-        let tokens = tokens
-            .into_iter()
-            .map(|x| x.kind)
-            .collect::<Vec<TokenKind>>();
+impl<'a> Parser<'a> {
+    pub(crate) fn new(tokens: &'a [TokenKind<'a>]) -> Self {
         Self {
-            tokens: tokens.into_iter().peekable(),
+            tokens,
+            current_pos: RefCell::new(0),
         }
     }
 
-    fn missing_expected_token(expected: TokenKind, found: TokenKind) -> ParseError {
+    fn missing_expected_token(expected: TokenKind<'a>, found: TokenKind<'a>) -> ParseError<'a> {
         ParseError::MissingExpectedToken { expected, found }
     }
 
@@ -258,36 +261,38 @@ impl Parser {
     }
 
     #[must_use]
-    fn peek(&mut self) -> Option<&TokenKind> {
-        self.tokens.peek()
+    fn peek(&self) -> Option<&'a TokenKind<'a>> {
+        self.tokens.get(*self.current_pos.borrow())
     }
 
-    fn consume(&mut self) -> Option<TokenKind> {
-        self.tokens.next()
+    fn consume(&self) -> Option<&'a TokenKind<'a>> {
+        let res = self.tokens.get(*self.current_pos.borrow());
+        *self.current_pos.borrow_mut() += 1;
+        res
     }
 
-    fn expect(&mut self, token: TokenKind) -> PResult<()> {
-        if Some(&token) == self.peek() {
+    fn expect(&self, kind: TokenKind<'a>) -> Result<(), ParseError<'a>> {
+        if Some(&kind) == self.peek() {
             self.consume();
             return Ok(());
         }
         Err(Self::missing_expected_token(
-            token,
+            kind,
             self.peek().unwrap_or_default().clone(),
         ))
     }
 
-    fn expect_ident(&mut self) -> PResult<String> {
+    fn expect_ident(&self) -> Result<&'a str, ParseError<'a>> {
         match self.consume() {
-            Some(TokenKind::Ident(ident)) => Ok(ident),
+            Some(&TokenKind::Ident(ident)) => Ok(ident),
             token => Err(Self::missing_expected_token(
-                TokenKind::Ident("".to_string()),
-                token.unwrap_or_default(),
+                TokenKind::Ident(""),
+                token.unwrap_or_default().clone(),
             )),
         }
     }
 
-    pub(crate) fn parse(&mut self) -> PResult<Program> {
+    pub(crate) fn parse(&self) -> Result<Program<'a>, ParseError<'a>> {
         let mut functions = Vec::new();
         while let Some(TokenKind::KeyWord(KeyWord::FuncDeclare)) = self.peek() {
             let func = self.parse_function()?;
@@ -310,15 +315,21 @@ impl Parser {
         })
     }
 
-    fn parse_function(&mut self) -> PResult<Function> {
+    pub(crate) fn parse_tokens(tokens: &'a [TokenKind<'a>]) -> Result<Program<'a>, ParseError<'a>> {
+        let parser = Parser::new(tokens);
+        // parser.parse().unwrap()
+        parser.parse()
+    }
+
+    fn parse_function(&self) -> Result<Function<'a>, ParseError<'a>> {
         // function := FUNC_DECLARE func_name statements END_FUNC
         self.expect(TokenKind::KeyWord(KeyWord::FuncDeclare))?;
         let func_name = match self.consume() {
             Some(TokenKind::Ident(func_name)) => func_name,
             token => {
                 return Err(Self::missing_expected_token(
-                    TokenKind::Ident("func_name".to_string()),
-                    token.unwrap_or_default(),
+                    TokenKind::Ident("func_name"),
+                    token.unwrap_or_default().clone(),
                 ));
             }
         };
@@ -331,12 +342,12 @@ impl Parser {
         }
         self.expect(TokenKind::KeyWord(KeyWord::EndFunc))?;
         Ok(Function {
-            name: Box::new(func_name),
+            name: func_name,
             body: Box::new(statements),
         })
     }
 
-    fn parse_statement(&mut self) -> PResult<StmtKind> {
+    fn parse_statement(&self) -> Result<StmtKind<'a>, ParseError<'a>> {
         let stmtkind = match self.peek().unwrap_or_default() {
             TokenKind::Comment(_) => {
                 let TokenKind::Comment(comment) = self.consume().unwrap() else {
@@ -386,7 +397,7 @@ impl Parser {
                 let expr = self.parse_expression(0)?;
                 self.expect(TokenKind::KeyWord(KeyWord::SemiColon))?;
                 StmtKind::Declare {
-                    lhs: Box::new(var),
+                    lhs: var,
                     rhs: Box::new(expr),
                 }
             }
@@ -432,7 +443,7 @@ impl Parser {
                     tok => {
                         return Err(Self::missing_expected_token(
                             TokenKind::KeyWord(KeyWord::EndBlock),
-                            tok.unwrap_or_default(),
+                            tok.unwrap_or_default().clone(),
                         ));
                     }
                 }
@@ -447,25 +458,25 @@ impl Parser {
                 // forvar := NUMBER | WORD
                 self.consume();
                 let for_start = match self.consume().unwrap_or_default() {
-                    TokenKind::Ident(ident) => ForVar::Ident(Box::new(ident)),
-                    TokenKind::Literal(Literal::Int(num)) => ForVar::Int(num),
-                    TokenKind::Literal(Literal::Float(num)) => ForVar::Float(num),
+                    TokenKind::Ident(ident) => ForVar::Ident(ident),
+                    TokenKind::Literal(Literal::Int(num)) => ForVar::Int(*num),
+                    TokenKind::Literal(Literal::Float(num)) => ForVar::Float(*num),
                     tok => {
                         return Err(Self::missing_expected_token(
                             TokenKind::KeyWord(KeyWord::Assign),
-                            tok,
+                            tok.clone(),
                         ));
                     }
                 };
                 self.expect(TokenKind::KeyWord(KeyWord::ForRangeStart))?;
                 let for_end = match self.consume().unwrap_or_default() {
-                    TokenKind::Ident(ident) => ForVar::Ident(Box::new(ident)),
-                    TokenKind::Literal(Literal::Int(num)) => ForVar::Int(num),
-                    TokenKind::Literal(Literal::Float(num)) => ForVar::Float(num),
+                    TokenKind::Ident(ident) => ForVar::Ident(ident),
+                    TokenKind::Literal(Literal::Int(num)) => ForVar::Int(*num),
+                    TokenKind::Literal(Literal::Float(num)) => ForVar::Float(*num),
                     tok => {
                         return Err(Self::missing_expected_token(
                             TokenKind::KeyWord(KeyWord::Assign),
-                            tok,
+                            tok.clone(),
                         ));
                     }
                 };
@@ -524,7 +535,7 @@ impl Parser {
                         let expr = self.parse_expression(0)?;
                         self.expect(TokenKind::KeyWord(KeyWord::SemiColon))?;
                         StmtKind::Assign {
-                            lhs: Box::new(ident),
+                            lhs: &ident,
                             rhs: Box::new(expr),
                         }
                     }
@@ -533,20 +544,20 @@ impl Parser {
                         if let TokenKind::Ident(func_name) = next_tok {
                             self.expect(TokenKind::KeyWord(KeyWord::SemiColon))?;
                             StmtKind::AssignFuncCall {
-                                var_name: Box::new(ident),
-                                func_name: Box::new(func_name),
+                                var_name: &ident,
+                                func_name,
                             }
                         } else {
                             return Err(Self::missing_expected_token(
                                 TokenKind::KeyWord(KeyWord::Assign),
-                                next_tok,
+                                next_tok.clone(),
                             ));
                         }
                     }
                     peek_tok => {
                         return Err(Self::missing_expected_token(
                             TokenKind::KeyWord(KeyWord::Assign),
-                            peek_tok,
+                            peek_tok.clone(),
                         ));
                     }
                 }
@@ -561,14 +572,14 @@ impl Parser {
         Ok(stmtkind)
     }
 
-    fn parse_expression(&mut self, precedence_limit: u32) -> PResult<Expr> {
+    fn parse_expression(&self, precedence_limit: u32) -> Result<Expr<'a>, ParseError<'a>> {
         // Pratt parsing
         // https://martin.janiczek.cz/2023/07/03/demystifying-pratt-parsers.html
         // https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
         // https://journal.stuffwithstuff.com/2011/03/19/pratt-parsers-expression-parsing-made-easy
         let mut lhs = match self.consume().unwrap_or_default() {
-            TokenKind::Literal(literal) => Expr::ExprLeaf(ExprLeaf::from_literal(literal)),
-            TokenKind::Ident(ident) => Expr::Ident(Box::new(ident)),
+            TokenKind::Literal(literal) => Expr::ExprLeaf(ExprLeaf::from_literal(&literal)),
+            TokenKind::Ident(ident) => Expr::Ident(ident),
             op @ TokenKind::KeyWord(KeyWord::Sub) | op @ TokenKind::KeyWord(KeyWord::Sum) => {
                 let op = BinaryOp::from_token(&op).unwrap();
                 Expr::UnaryExpr {
@@ -576,7 +587,7 @@ impl Parser {
                     child: Box::new(self.parse_expression(0)?),
                 }
             }
-            tok => return Err(ParseError::UnexpectedToken(tok)),
+            tok => return Err(ParseError::UnexpectedToken(tok.clone())),
         };
 
         while let Some(op @ TokenKind::KeyWord(_)) = self.peek() {
@@ -621,19 +632,24 @@ impl Parser {
 #[cfg(test)]
 mod tests {
     use super::Parser;
-    use crate::lexer::Lexer;
+    use crate::lexer::{Lexer, TokenKind};
     use color_eyre::eyre::Result;
 
     #[test]
     fn test_parser() -> Result<()> {
-        let program = include_str!("../../testdata/snapshots/test.rpp");
+        let program = include_str!("../testdata/snapshots/test.rpp");
 
         let tokens = Lexer::tokenize_str(program)?;
-        let mut parser = Parser::new(tokens);
-        let ast = parser.parse()?;
+        let token_kinds = tokens
+            .into_iter()
+            .map(|tok| tok.kind)
+            .collect::<Vec<TokenKind>>();
+
+        let parser = Parser::new(&token_kinds);
+        let ast = parser.parse().unwrap();
 
         let mut settings = insta::Settings::clone_current();
-        settings.set_snapshot_path("../../testdata/output/");
+        settings.set_snapshot_path("../testdata/output/");
         settings.bind(|| {
             insta::assert_snapshot!(format!("{ast:#?}"));
         });
