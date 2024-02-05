@@ -1,5 +1,5 @@
 ---
-source: src/parser/mod.rs
+source: src/parser.rs
 expression: "format!(\"{ast:#?}\")"
 ---
 Program {
@@ -7,7 +7,7 @@ Program {
         Function {
             name: "myfunc_one",
             body: [
-                Assign {
+                Declare {
                     lhs: "ix",
                     rhs: ExprLeaf(
                         Int(
@@ -180,10 +180,10 @@ Program {
             ],
         },
         AssignFuncCall {
-            lhs: "y",
-            rhs: "myfunc_one",
+            var_name: "y",
+            func_name: "myfunc_one",
         },
-        Assign {
+        Declare {
             lhs: "ix",
             rhs: ExprLeaf(
                 Int(
@@ -191,7 +191,7 @@ Program {
                 ),
             ),
         },
-        Assign {
+        Declare {
             lhs: "range",
             rhs: ExprLeaf(
                 Int(
