@@ -213,6 +213,29 @@ macro_rules! impl_bin_ops {
     };
 }
 
+// impl<'a> ForVar<'a> {
+//     pub(crate) fn as_int(&self, env: &Environment) -> Option<i64> {
+//         match self {
+//             ForVar::Int(val) => Some(*val),
+//             ForVar::Float(_) => None,
+//             ForVar::Ident(var_name) => {
+//                 if let Some(Value::Int(val)) = env.get_val_of_var(var_name) {
+//                     Some(val)
+//                 } else {
+//                     None
+//                 }
+//             }
+//         }
+//     }
+
+//     pub(crate) fn diff(&self, end: &Self, env: &Environment) -> i64 {
+//         match (self.as_int(env), end.as_int(env)) {
+//             (Some(start), Some(end)) => end - start,
+//             _ => 0,
+//         }
+//     }
+// }
+
 // impl_bin_ops!(Add, add, +);
 impl_bin_ops!(Sub, sub, -);
 impl_bin_ops!(Mul, mul, *);
