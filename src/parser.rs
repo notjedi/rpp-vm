@@ -28,7 +28,6 @@ pub(crate) enum Value<'a> {
     Float(f64),
     Char(char),
     Bool(bool),
-    #[allow(clippy::box_collection)]
     Str(&'a str),
 }
 
@@ -36,33 +35,9 @@ pub(crate) enum Value<'a> {
 pub(crate) enum ForVar<'a> {
     Int(i64),
     // TODO: no use of float in for loops?
-    #[allow(dead_code)]
     Float(f64),
     Ident(&'a str),
 }
-
-// impl<'a> ForVar<'a> {
-//     pub(crate) fn as_int(&self, env: &Environment) -> Option<i64> {
-//         match self {
-//             ForVar::Int(val) => Some(*val),
-//             ForVar::Float(_) => None,
-//             ForVar::Ident(var_name) => {
-//                 if let Some(Value::Int(val)) = env.get_val_of_var(var_name) {
-//                     Some(val)
-//                 } else {
-//                     None
-//                 }
-//             }
-//         }
-//     }
-
-//     pub(crate) fn diff(&self, end: &Self, env: &Environment) -> i64 {
-//         match (self.as_int(env), end.as_int(env)) {
-//             (Some(start), Some(end)) => end - start,
-//             _ => 0,
-//         }
-//     }
-// }
 
 // https://adeschamps.github.io/enum-size
 // https://nnethercote.github.io/perf-book/type-sizes.html
@@ -358,7 +333,7 @@ impl<'a> Parser<'a> {
             TokenKind::KeyWord(KeyWord::BreakLoop) => {
                 // BREAK_LOOP SEMI_COLON
                 self.consume();
-                self.expect(KeyWord::SemiColon.into())?;
+                self.expect(TokenKind::KeyWord(KeyWord::SemiColon))?;
                 StmtKind::BreakLoop
             }
             TokenKind::KeyWord(KeyWord::Print) => {
