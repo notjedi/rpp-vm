@@ -7,7 +7,7 @@
 #![allow(illegal_floating_point_literal_pattern)]
 
 // mod compiler;
-// mod interpreter;
+mod interpreter;
 mod lexer;
 mod parser;
 // mod vm;
