@@ -1,4 +1,4 @@
-use color_eyre::eyre::{eyre, Result};
+use color_eyre::eyre::Result;
 use itertools::Itertools;
 use std::{
     cmp::Ordering,
@@ -8,42 +8,27 @@ use std::{
 };
 use thiserror::Error;
 
-use crate::{
-    compiler::ProgFunction,
-    parser::{BinaryOp, Expr, ExprLeaf, Function, LogicalOp, Program, StmtKind},
+use crate::parser::{
+    BinaryOp, Expr, ExprLeaf, ForVar, Function, LogicalOp, Program, StmtKind, Value,
 };
 
-type BoxStr = Box<String>;
-
 #[derive(Debug, Error)]
-pub(crate) enum RuntimeError {
+pub(crate) enum RuntimeError<'a> {
     #[error("variable not declared: {0:?}")]
-    VariableNotDeclared(BoxStr),
+    VariableNotDeclared(String),
     #[error("function not declared: {0:?}")]
-    FunctionNotDeclared(BoxStr),
+    FunctionNotDeclared(String),
     #[error("operations on {0} and {1} are not supported")]
-    TypeError(Value, Value),
+    TypeError(Value<'a>, Value<'a>),
     #[error("usage of `break` outside loop")]
     BreakOutsideLoop,
     #[error("division by zero")]
     DivisionByZero,
     #[error("bad operand for unary op: {0}")]
-    BadOperandforUnaryOp(Value),
+    BadOperandforUnaryOp(Value<'a>),
 }
 
-#[derive(Clone, Debug)]
-pub(crate) enum Value {
-    Unit,
-    Int(i64),
-    Float(f64),
-    Char(char),
-    Bool(bool),
-    #[allow(clippy::box_collection)]
-    Str(Box<String>),
-    ProgFunction(ProgFunction),
-}
-
-impl Display for Value {
+impl<'a> Display for Value<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Unit => f.write_fmt(format_args!("unit")),
@@ -52,12 +37,11 @@ impl Display for Value {
             Self::Bool(arg0) => f.write_fmt(format_args!("{}", arg0)),
             Self::Char(arg0) => f.write_fmt(format_args!("{}", arg0)),
             Self::Float(arg0) => f.write_fmt(format_args!("{}", arg0)),
-            Value::ProgFunction(arg0) => f.write_fmt(format_args!("{:?}", arg0)),
         }
     }
 }
 
-impl PartialOrd for Value {
+impl<'a> PartialOrd for Value<'a> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match (self, other) {
             (Value::Unit, Value::Unit) => Some(Ordering::Equal),
@@ -65,7 +49,6 @@ impl PartialOrd for Value {
             (Value::Float(lhs), Value::Float(rhs)) => lhs.partial_cmp(rhs),
             (Value::Char(lhs), Value::Char(rhs)) => lhs.partial_cmp(rhs),
             (Value::Bool(lhs), Value::Bool(rhs)) => lhs.partial_cmp(rhs),
-            // (Value::Str(lhs), Value::Str(rhs)) => lhs.partial_cmp(rhs),
             (Value::Int(lhs), Value::Float(rhs)) => (*lhs as f64).partial_cmp(rhs),
             (Value::Float(lhs), Value::Int(rhs)) => lhs.partial_cmp(&(*rhs as f64)),
             _ => None,
@@ -73,7 +56,7 @@ impl PartialOrd for Value {
     }
 }
 
-impl PartialEq for Value {
+impl<'a> PartialEq for Value<'a> {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Value::Unit, Value::Unit) => true,
@@ -89,8 +72,8 @@ impl PartialEq for Value {
     }
 }
 
-impl Add<Value> for Value {
-    type Output = Value;
+impl<'a> Add<Value<'a>> for Value<'a> {
+    type Output = Value<'a>;
 
     fn add(self, rhs: Value) -> Self::Output {
         match (self, rhs) {
@@ -98,15 +81,15 @@ impl Add<Value> for Value {
             (Value::Int(lhs), Value::Float(rhs)) => Value::Float(lhs as f64 + rhs),
             (Value::Float(lhs), Value::Int(rhs)) => Value::Float(lhs + rhs as f64),
             (Value::Float(lhs), Value::Float(rhs)) => Value::Float(lhs + rhs),
-            (Value::Str(lhs), rhs) => Value::Str(Box::new(*lhs + " " + &rhs.to_string())),
-            (lhs, Value::Str(rhs)) => Value::Str(Box::new(lhs.to_string() + " " + &rhs)),
+            // (Value::Str(lhs), rhs) => Value::Str(&(lhs.to_string() + " " + &rhs.to_string())),
+            // (lhs, Value::Str(rhs)) => Value::Str(&(lhs.to_string() + " " + &rhs)),
             _ => unreachable!(),
         }
     }
 }
 
-impl Add<&Value> for Value {
-    type Output = Value;
+impl<'a> Add<&Value<'a>> for Value<'a> {
+    type Output = Value<'a>;
 
     fn add(self, rhs: &Value) -> Self::Output {
         match (self, rhs) {
@@ -114,15 +97,15 @@ impl Add<&Value> for Value {
             (Value::Int(lhs), Value::Float(rhs)) => Value::Float(lhs as f64 + *rhs),
             (Value::Float(lhs), Value::Int(rhs)) => Value::Float(lhs + *rhs as f64),
             (Value::Float(lhs), Value::Float(rhs)) => Value::Float(lhs + *rhs),
-            (Value::Str(lhs), rhs) => Value::Str(Box::new(*lhs + " " + &rhs.to_string())),
-            (lhs, Value::Str(rhs)) => Value::Str(Box::new(lhs.to_string() + " " + &rhs)),
+            // (Value::Str(lhs), rhs) => Value::Str(&(lhs.to_string() + " " + &rhs.to_string())),
+            // (lhs, Value::Str(rhs)) => Value::Str(&(lhs.to_string() + " " + &rhs)),
             _ => unreachable!(),
         }
     }
 }
 
-impl Add<Value> for &Value {
-    type Output = Value;
+impl<'a> Add<Value<'a>> for &Value<'a> {
+    type Output = Value<'a>;
 
     fn add(self, rhs: Value) -> Self::Output {
         match (self, rhs) {
@@ -130,15 +113,15 @@ impl Add<Value> for &Value {
             (Value::Int(lhs), Value::Float(rhs)) => Value::Float(*lhs as f64 + rhs),
             (Value::Float(lhs), Value::Int(rhs)) => Value::Float(*lhs + rhs as f64),
             (Value::Float(lhs), Value::Float(rhs)) => Value::Float(*lhs + rhs),
-            (Value::Str(lhs), rhs) => Value::Str(Box::new(*lhs.clone() + " " + &rhs.to_string())),
-            (lhs, Value::Str(rhs)) => Value::Str(Box::new(lhs.to_string() + " " + &rhs)),
+            // (Value::Str(lhs), rhs) => Value::Str(&(lhs.to_string() + " " + &rhs.to_string())),
+            // (lhs, Value::Str(rhs)) => Value::Str(&(lhs.to_string() + " " + &rhs)),
             _ => unreachable!(),
         }
     }
 }
 
-impl Add<&Value> for &Value {
-    type Output = Value;
+impl<'a> Add<&Value<'a>> for &Value<'a> {
+    type Output = Value<'a>;
 
     fn add(self, rhs: &Value) -> Self::Output {
         match (self, rhs) {
@@ -146,8 +129,8 @@ impl Add<&Value> for &Value {
             (Value::Int(lhs), Value::Float(rhs)) => Value::Float(*lhs as f64 + *rhs),
             (Value::Float(lhs), Value::Int(rhs)) => Value::Float(*lhs + *rhs as f64),
             (Value::Float(lhs), Value::Float(rhs)) => Value::Float(*lhs + *rhs),
-            (Value::Str(lhs), rhs) => Value::Str(Box::new(*lhs.clone() + " " + &rhs.to_string())),
-            (lhs, Value::Str(rhs)) => Value::Str(Box::new(lhs.to_string() + " " + &rhs)),
+            // (Value::Str(lhs), rhs) => Value::Str(&(lhs.to_string() + " " + &rhs.to_string())),
+            // (lhs, Value::Str(rhs)) => Value::Str(&(lhs.to_string() + " " + &rhs)),
             _ => unreachable!(),
         }
     }
@@ -155,8 +138,8 @@ impl Add<&Value> for &Value {
 
 macro_rules! impl_bin_ops {
     ($op_trait:ident, $op_fn:ident, $op:tt) => {
-        impl $op_trait<Value> for Value {
-            type Output = Value;
+        impl<'a> $op_trait<Value<'a>> for Value<'a> {
+            type Output = Value<'a>;
 
             fn $op_fn(self, rhs: Value) -> Self::Output {
                 match (self, rhs) {
@@ -169,8 +152,8 @@ macro_rules! impl_bin_ops {
             }
         }
 
-        impl $op_trait<&Value> for Value {
-            type Output = Value;
+        impl<'a> $op_trait<&Value<'a>> for Value<'a> {
+            type Output = Value<'a>;
 
             fn $op_fn(self, rhs: &Value) -> Self::Output {
                 match (self, rhs) {
@@ -183,8 +166,8 @@ macro_rules! impl_bin_ops {
             }
         }
 
-        impl $op_trait<Value> for &Value {
-            type Output = Value;
+        impl<'a> $op_trait<Value<'a>> for &Value<'a> {
+            type Output = Value<'a>;
 
             fn $op_fn(self, rhs: Value) -> Self::Output {
                 match (self, rhs) {
@@ -197,8 +180,8 @@ macro_rules! impl_bin_ops {
             }
         }
 
-        impl $op_trait<&Value> for &Value {
-            type Output = Value;
+        impl<'a> $op_trait<&Value<'a>> for &Value<'a> {
+            type Output = Value<'a>;
 
             fn $op_fn(self, rhs: &Value) -> Self::Output {
                 match (self, rhs) {
@@ -213,28 +196,26 @@ macro_rules! impl_bin_ops {
     };
 }
 
-// impl<'a> ForVar<'a> {
-//     pub(crate) fn as_int(&self, env: &Environment) -> Option<i64> {
-//         match self {
-//             ForVar::Int(val) => Some(*val),
-//             ForVar::Float(_) => None,
-//             ForVar::Ident(var_name) => {
-//                 if let Some(Value::Int(val)) = env.get_val_of_var(var_name) {
-//                     Some(val)
-//                 } else {
-//                     None
-//                 }
-//             }
-//         }
-//     }
+pub(crate) fn forvar_as_int(var: &ForVar, env: &Environment) -> Option<i64> {
+    match var {
+        ForVar::Int(val) => Some(*val),
+        ForVar::Float(_) => None,
+        ForVar::Ident(var_name) => {
+            if let Some(Value::Int(val)) = env.get_val_of_var(var_name) {
+                Some(val)
+            } else {
+                None
+            }
+        }
+    }
+}
 
-//     pub(crate) fn diff(&self, end: &Self, env: &Environment) -> i64 {
-//         match (self.as_int(env), end.as_int(env)) {
-//             (Some(start), Some(end)) => end - start,
-//             _ => 0,
-//         }
-//     }
-// }
+pub(crate) fn forvar_diff(start: &ForVar, end: &ForVar, env: &Environment) -> i64 {
+    match (forvar_as_int(start, env), forvar_as_int(end, env)) {
+        (Some(start), Some(end)) => end - start,
+        _ => 0,
+    }
+}
 
 // impl_bin_ops!(Add, add, +);
 impl_bin_ops!(Sub, sub, -);
@@ -243,19 +224,19 @@ impl_bin_ops!(Div, div, /);
 impl_bin_ops!(Rem, rem, %);
 
 #[derive(Debug, PartialEq)]
-pub(crate) enum ControlFlow {
+pub(crate) enum ControlFlow<'a> {
     // NOTE: easy to add support of `continue` in the future
     Nop,
     Break,
-    Return(Value),
+    Return(Value<'a>),
 }
 
 #[derive(Debug)]
-pub(crate) struct Scope {
-    variables: HashMap<String, Value>,
+pub(crate) struct Scope<'a> {
+    variables: HashMap<String, Value<'a>>,
 }
 
-impl Scope {
+impl<'a> Scope<'a> {
     pub(crate) fn new() -> Self {
         Self {
             variables: HashMap::new(),
@@ -264,12 +245,12 @@ impl Scope {
 }
 
 #[derive(Debug)]
-pub(crate) struct Environment {
-    functions: Vec<Function>,
-    scopes: Vec<Scope>,
+pub(crate) struct Environment<'a> {
+    functions: Vec<Function<'a>>,
+    scopes: Vec<Scope<'a>>,
 }
 
-impl Environment {
+impl<'a> Environment<'a> {
     pub(crate) fn new() -> Self {
         Self {
             functions: vec![],
@@ -281,7 +262,7 @@ impl Environment {
         self.functions
             .iter()
             .rev()
-            .find_position(|func| *func.name == name)
+            .find_position(|func| *func.name == *name)
             .map(|(idx, _)| idx)
     }
 
@@ -300,11 +281,11 @@ impl Environment {
         self.scopes.pop();
     }
 
-    pub(crate) fn register_function(&mut self, func: &Function) {
+    pub(crate) fn register_function(&mut self, func: &'a Function<'a>) {
         self.functions.push(func.clone())
     }
 
-    pub(crate) fn register_variable(&mut self, name: &str, value: Value) {
+    pub(crate) fn register_variable(&mut self, name: &str, value: Value<'a>) {
         self.scopes
             .last_mut()
             .unwrap()
@@ -312,22 +293,24 @@ impl Environment {
             .insert(name.to_string(), value);
     }
 
-    pub(crate) fn update_variable(&mut self, name: &str, value: Value) -> Result<()> {
+    pub(crate) fn update_variable(
+        &mut self,
+        name: &str,
+        value: Value<'a>,
+    ) -> Result<(), RuntimeError<'a>> {
         for scope in self.scopes.iter_mut().rev() {
             if let Some(val) = scope.variables.get_mut(name) {
                 *val = value;
                 return Ok(());
             }
         }
-        Err(eyre!(RuntimeError::VariableNotDeclared(Box::new(
-            name.to_string()
-        ))))
+        Err(RuntimeError::VariableNotDeclared(name.to_string()))
     }
 
     // TODO: this is now how we should be getting the value?
     // functions shouldn't have the ability to access global vars defined in main
     // only sub-scopes we have are if, else, for and while statements
-    pub(crate) fn get_val_of_var(&self, name: &str) -> Option<Value> {
+    pub(crate) fn get_val_of_var(&self, name: &str) -> Option<Value<'a>> {
         for scope in self.scopes.iter().rev() {
             if let Some(val) = scope.variables.get(name) {
                 return Some(val.clone());
@@ -337,55 +320,69 @@ impl Environment {
     }
 }
 
-pub(crate) trait Visitor {
-    fn register_function(&mut self, func: &Function) -> Result<()>;
+pub(crate) trait Visitor<'a> {
+    fn register_function(&'a mut self, func: &'a Function<'a>) -> Result<(), RuntimeError<'a>>;
 
-    fn register_variable(&mut self, name: &str, value: Value) -> Result<()>;
+    fn register_variable(
+        &'a mut self,
+        name: &str,
+        value: Value<'a>,
+    ) -> Result<(), RuntimeError<'a>>;
 
-    fn visit_function(&mut self, func: &Function) -> Result<Value>;
+    fn visit_function(&'a mut self, func: &'a Function<'a>) -> Result<Value<'a>, RuntimeError<'a>>;
 
-    fn visit_stmt(&mut self, stmt: &StmtKind) -> Result<ControlFlow>;
+    fn visit_stmt(
+        &'a mut self,
+        stmt: &'a StmtKind<'a>,
+    ) -> Result<ControlFlow<'a>, RuntimeError<'a>>;
 
-    fn visit_expr(&mut self, expr: &Expr) -> Result<Value>;
+    fn visit_expr(&'a mut self, expr: &'a Expr<'a>) -> Result<Value<'a>, RuntimeError<'a>>;
 
-    fn visit_expr_leaf(&mut self, expr_leaf: &ExprLeaf) -> Result<Value>;
+    fn visit_expr_leaf(
+        &'a mut self,
+        expr_leaf: &'a ExprLeaf<'a>,
+    ) -> Result<Value<'a>, RuntimeError<'a>>;
 }
 
 #[derive(Debug)]
-pub(crate) struct Interpreter {
-    environment: Environment,
+pub(crate) struct Interpreter<'a> {
+    environment: Environment<'a>,
 }
 
-impl Interpreter {
+impl<'a> Interpreter<'a> {
     pub(crate) fn new() -> Self {
         Self {
             environment: Environment::new(),
         }
     }
 
-    fn check_if_compatible(lhs: &Value, rhs: &Value) -> Result<()> {
+    fn check_if_compatible(lhs: &Value<'a>, rhs: &Value<'a>) -> Result<(), RuntimeError<'a>> {
         match (lhs, rhs) {
             (Value::Int(_), Value::Int(_)) => Ok(()),
             (Value::Int(_), Value::Float(_)) => Ok(()),
             (Value::Float(_), Value::Int(_)) => Ok(()),
             (Value::Float(_), Value::Float(_)) => Ok(()),
-            (lhs, rhs) => Err(eyre!(RuntimeError::TypeError(lhs.clone(), rhs.clone()))),
+            (lhs, rhs) => Err(RuntimeError::TypeError(lhs.clone(), rhs.clone())),
         }
     }
 }
 
-impl Visitor for Interpreter {
-    fn register_function(&mut self, func: &Function) -> Result<()> {
+impl<'a> Visitor<'a> for Interpreter<'a> {
+    fn register_function(&'a mut self, func: &'a Function<'a>) -> Result<(), RuntimeError<'a>> {
         self.environment.register_function(func);
         Ok(())
     }
 
-    fn register_variable(&mut self, name: &str, value: Value) -> Result<()> {
+    fn register_variable(
+        &'a mut self,
+        name: &str,
+        value: Value<'a>,
+    ) -> Result<(), RuntimeError<'a>> {
         self.environment.register_variable(name, value);
         Ok(())
     }
 
-    fn visit_function(&mut self, func: &Function) -> Result<Value> {
+    fn visit_function(&'a mut self, func: &'a Function<'a>) -> Result<Value<'a>, RuntimeError<'a>> {
         if self.environment.get_idx_of_func(&func.name).is_some() {
             self.environment.start_scope();
             let res = func.body.visit(self)?;
@@ -395,10 +392,13 @@ impl Visitor for Interpreter {
                 _ => return Ok(Value::Unit),
             }
         }
-        Err(eyre!(RuntimeError::FunctionNotDeclared(func.name.clone())))
+        Err(RuntimeError::FunctionNotDeclared(func.name.to_string()))
     }
 
-    fn visit_stmt(&mut self, stmt: &StmtKind) -> Result<ControlFlow> {
+    fn visit_stmt(
+        &'a mut self,
+        stmt: &'a StmtKind<'a>,
+    ) -> Result<ControlFlow<'a>, RuntimeError<'a>> {
         let ctrl_flow = match stmt {
             StmtKind::BreakLoop => ControlFlow::Break,
             StmtKind::Expr(expr) => {
@@ -410,7 +410,8 @@ impl Visitor for Interpreter {
                 let mut print_str = String::new();
                 for expr in exprs {
                     let val = expr.visit(self)?;
-                    write!(&mut print_str, "{} ", val)?;
+                    // TODO: how to use ? here
+                    write!(&mut print_str, "{} ", val).unwrap();
                 }
                 // NOTE: prints \n as new line instead of raw \n literal
                 println!("{}", &print_str.replace("\\n", "\n"));
@@ -468,7 +469,7 @@ impl Visitor for Interpreter {
             }
             StmtKind::ForLoop { start, end, body } => {
                 let mut res = ControlFlow::Nop;
-                let diff = start.diff(end, &self.environment);
+                let diff = forvar_diff(start, end, &self.environment);
                 for _ in 0..diff {
                     res = body.visit(self)?;
                     match res {
@@ -497,7 +498,7 @@ impl Visitor for Interpreter {
         Ok(ctrl_flow)
     }
 
-    fn visit_expr(&mut self, expr: &Expr) -> Result<Value> {
+    fn visit_expr(&'a mut self, expr: &'a Expr) -> Result<Value<'a>, RuntimeError<'a>> {
         let val = match expr {
             Expr::BinaryExpr { op, lhs, rhs } => {
                 let lhs_val = lhs.visit(self)?;
@@ -505,7 +506,7 @@ impl Visitor for Interpreter {
                 Self::check_if_compatible(&lhs_val, &rhs_val)?;
                 if *op == BinaryOp::Div {
                     if let Value::Int(0) | Value::Float(0.0) = rhs_val {
-                        return Err(eyre!(RuntimeError::DivisionByZero));
+                        return Err(RuntimeError::DivisionByZero);
                     }
                 }
                 match op {
@@ -536,7 +537,7 @@ impl Visitor for Interpreter {
                     BinaryOp::Add => val,
                     BinaryOp::Sub => match val {
                         Value::Int(_) | Value::Float(_) => Value::Int(0) - val,
-                        _ => return Err(eyre!(RuntimeError::BadOperandforUnaryOp(val.clone()))),
+                        _ => return Err(RuntimeError::BadOperandforUnaryOp(val.clone())),
                     },
                     // would error in parse stage itself
                     _ => unreachable!(),
@@ -545,13 +546,16 @@ impl Visitor for Interpreter {
             Expr::ExprLeaf(expr_leaf) => self.visit_expr_leaf(expr_leaf)?,
             Expr::Ident(ident) => {
                 let val = self.environment.get_val_of_var(ident);
-                val.ok_or_else(|| RuntimeError::VariableNotDeclared(ident.clone()))?
+                val.ok_or_else(|| RuntimeError::VariableNotDeclared(ident.to_string()))?
             }
         };
         Ok(val)
     }
 
-    fn visit_expr_leaf(&mut self, expr_leaf: &ExprLeaf) -> Result<Value> {
+    fn visit_expr_leaf(
+        &'a mut self,
+        expr_leaf: &'a ExprLeaf<'a>,
+    ) -> Result<Value<'a>, RuntimeError<'a>> {
         let val = match expr_leaf {
             ExprLeaf::Char(ch) => Value::Char(*ch),
             ExprLeaf::BoolTrue => Value::Bool(true),
@@ -564,12 +568,12 @@ impl Visitor for Interpreter {
     }
 }
 
-pub(crate) trait Visitable<T> {
-    fn visit(&self, v: &mut dyn Visitor) -> Result<T>;
+pub(crate) trait Visitable<'a, T> {
+    fn visit(&'a self, v: &'a mut dyn Visitor<'a>) -> Result<T, RuntimeError<'a>>;
 }
 
-impl<T: Visitable<()>> Visitable<()> for Vec<T> {
-    fn visit(&self, v: &mut dyn Visitor) -> Result<()> {
+impl<'a, T: Visitable<'a, ()>> Visitable<'a, ()> for Vec<T> {
+    fn visit(&'a self, v: &'a mut dyn Visitor<'a>) -> Result<(), RuntimeError<'a>> {
         for elem in self {
             elem.visit(v)?;
         }
@@ -577,8 +581,8 @@ impl<T: Visitable<()>> Visitable<()> for Vec<T> {
     }
 }
 
-impl<T: Visitable<ControlFlow>> Visitable<ControlFlow> for Vec<T> {
-    fn visit(&self, v: &mut dyn Visitor) -> Result<ControlFlow> {
+impl<'a, T: Visitable<'a, ControlFlow<'a>>> Visitable<'a, ControlFlow<'a>> for Vec<T> {
+    fn visit(&'a self, v: &'a mut dyn Visitor<'a>) -> Result<ControlFlow<'a>, RuntimeError<'a>> {
         let mut res = ControlFlow::Nop;
         for elem in self {
             res = elem.visit(v)?;
@@ -593,14 +597,14 @@ impl<T: Visitable<ControlFlow>> Visitable<ControlFlow> for Vec<T> {
     }
 }
 
-impl Visitable<Value> for Function {
-    fn visit(&self, v: &mut dyn Visitor) -> Result<Value> {
+impl<'a> Visitable<'a, Value<'a>> for Function<'a> {
+    fn visit(&'a self, v: &'a mut dyn Visitor<'a>) -> Result<Value<'a>, RuntimeError<'a>> {
         v.visit_function(self)
     }
 }
 
-impl Visitable<()> for Program {
-    fn visit(&self, v: &mut dyn Visitor) -> Result<()> {
+impl<'a> Visitable<'a, ()> for Program<'a> {
+    fn visit(&'a self, v: &'a mut dyn Visitor<'a>) -> Result<(), RuntimeError<'a>> {
         for function in &self.functions {
             v.register_function(function)?;
         }
@@ -608,27 +612,27 @@ impl Visitable<()> for Program {
             let stmt_ret = stmt.visit(v)?;
             // NOTE: `break` statements should not reach here, it should be caught inside a loop
             if stmt_ret == ControlFlow::Break {
-                return Err(eyre!(RuntimeError::BreakOutsideLoop));
+                return Err(RuntimeError::BreakOutsideLoop);
             }
         }
         Ok(())
     }
 }
 
-impl Visitable<ControlFlow> for StmtKind {
-    fn visit(&self, v: &mut dyn Visitor) -> Result<ControlFlow> {
+impl<'a> Visitable<'a, ControlFlow<'a>> for StmtKind<'a> {
+    fn visit(&'a self, v: &'a mut dyn Visitor<'a>) -> Result<ControlFlow<'a>, RuntimeError<'a>> {
         v.visit_stmt(self)
     }
 }
 
-impl Visitable<Value> for Expr {
-    fn visit(&self, v: &mut dyn Visitor) -> Result<Value> {
+impl<'a> Visitable<'a, Value<'a>> for Expr<'a> {
+    fn visit(&'a self, v: &'a mut dyn Visitor<'a>) -> Result<Value<'a>, RuntimeError<'a>> {
         v.visit_expr(self)
     }
 }
 
-impl Visitable<Value> for ExprLeaf {
-    fn visit(&self, v: &mut dyn Visitor) -> Result<Value> {
+impl<'a> Visitable<'a, Value<'a>> for ExprLeaf<'a> {
+    fn visit(&'a self, v: &'a mut dyn Visitor<'a>) -> Result<Value<'a>, RuntimeError<'a>> {
         v.visit_expr_leaf(self)
     }
 }
