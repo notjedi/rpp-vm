@@ -4,7 +4,6 @@
 #![allow(unused_variables)]
 #![allow(incomplete_features)]
 #![allow(clippy::enum_variant_names)]
-#![allow(illegal_floating_point_literal_pattern)]
 
 // mod compiler;
 mod interpreter;
