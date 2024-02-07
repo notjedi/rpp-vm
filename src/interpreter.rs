@@ -202,7 +202,7 @@ pub(crate) fn forvar_as_int(var: &ForVar, env: &Environment) -> Option<i64> {
         ForVar::Float(_) => None,
         ForVar::Ident(var_name) => {
             if let Some(Value::Int(val)) = env.get_val_of_var(var_name) {
-                Some(val)
+                Some(*val)
             } else {
                 None
             }
@@ -246,7 +246,7 @@ impl<'a> Scope<'a> {
 
 #[derive(Debug)]
 pub(crate) struct Environment<'a> {
-    functions: Vec<Function<'a>>,
+    functions: Vec<&'a Function<'a>>,
     scopes: Vec<Scope<'a>>,
 }
 
@@ -266,7 +266,7 @@ impl<'a> Environment<'a> {
             .map(|(idx, _)| idx)
     }
 
-    fn get_func(&self, name: &str) -> Option<&Function> {
+    fn get_func(&self, name: &str) -> Option<&'a Function<'a>> {
         if let Some(idx) = self.get_idx_of_func(name) {
             return Some(&self.functions[idx]);
         }
@@ -282,7 +282,7 @@ impl<'a> Environment<'a> {
     }
 
     pub(crate) fn register_function(&mut self, func: &'a Function<'a>) {
-        self.functions.push(func.clone())
+        self.functions.push(func)
     }
 
     pub(crate) fn register_variable(&mut self, name: &str, value: Value<'a>) {
@@ -297,7 +297,7 @@ impl<'a> Environment<'a> {
         &mut self,
         name: &str,
         value: Value<'a>,
-    ) -> Result<(), RuntimeError<'a>> {
+    ) -> Result<(), RuntimeError> {
         for scope in self.scopes.iter_mut().rev() {
             if let Some(val) = scope.variables.get_mut(name) {
                 *val = value;
@@ -310,10 +310,10 @@ impl<'a> Environment<'a> {
     // TODO: this is now how we should be getting the value?
     // functions shouldn't have the ability to access global vars defined in main
     // only sub-scopes we have are if, else, for and while statements
-    pub(crate) fn get_val_of_var(&self, name: &str) -> Option<Value<'a>> {
+    pub(crate) fn get_val_of_var(&self, name: &str) -> Option<&Value<'a>> {
         for scope in self.scopes.iter().rev() {
             if let Some(val) = scope.variables.get(name) {
-                return Some(val.clone());
+                return Some(val);
             }
         }
         None
@@ -321,27 +321,17 @@ impl<'a> Environment<'a> {
 }
 
 pub(crate) trait Visitor<'a> {
-    fn register_function(&'a mut self, func: &'a Function<'a>) -> Result<(), RuntimeError<'a>>;
+    fn register_function(&mut self, func: &'a Function<'a>) -> Result<(), RuntimeError>;
 
-    fn register_variable(
-        &'a mut self,
-        name: &str,
-        value: Value<'a>,
-    ) -> Result<(), RuntimeError<'a>>;
+    fn register_variable(&mut self, name: &str, value: Value<'a>) -> Result<(), RuntimeError>;
 
-    fn visit_function(&'a mut self, func: &'a Function<'a>) -> Result<Value<'a>, RuntimeError<'a>>;
+    fn visit_function(&mut self, func: &'a Function<'a>) -> Result<Value<'a>, RuntimeError>;
 
-    fn visit_stmt(
-        &'a mut self,
-        stmt: &'a StmtKind<'a>,
-    ) -> Result<ControlFlow<'a>, RuntimeError<'a>>;
+    fn visit_stmt(&mut self, stmt: &'a StmtKind<'a>) -> Result<ControlFlow<'a>, RuntimeError>;
 
-    fn visit_expr(&'a mut self, expr: &'a Expr<'a>) -> Result<Value<'a>, RuntimeError<'a>>;
+    fn visit_expr(&mut self, expr: &'a Expr<'a>) -> Result<Value<'a>, RuntimeError>;
 
-    fn visit_expr_leaf(
-        &'a mut self,
-        expr_leaf: &'a ExprLeaf<'a>,
-    ) -> Result<Value<'a>, RuntimeError<'a>>;
+    fn visit_expr_leaf(&mut self, expr_leaf: &'a ExprLeaf<'a>) -> Result<Value<'a>, RuntimeError>;
 }
 
 #[derive(Debug)]
@@ -368,25 +358,22 @@ impl<'a> Interpreter<'a> {
 }
 
 impl<'a> Visitor<'a> for Interpreter<'a> {
-    fn register_function(&'a mut self, func: &'a Function<'a>) -> Result<(), RuntimeError<'a>> {
+    fn register_function(&mut self, func: &'a Function<'a>) -> Result<(), RuntimeError> {
         self.environment.register_function(func);
         Ok(())
     }
 
-    fn register_variable(
-        &'a mut self,
-        name: &str,
-        value: Value<'a>,
-    ) -> Result<(), RuntimeError<'a>> {
+    fn register_variable(&mut self, name: &str, value: Value<'a>) -> Result<(), RuntimeError> {
         self.environment.register_variable(name, value);
         Ok(())
     }
 
-    fn visit_function(&'a mut self, func: &'a Function<'a>) -> Result<Value<'a>, RuntimeError<'a>> {
+    fn visit_function(&mut self, func: &'a Function<'a>) -> Result<Value<'a>, RuntimeError> {
         if self.environment.get_idx_of_func(&func.name).is_some() {
             self.environment.start_scope();
             let res = func.body.visit(self)?;
-            self.environment.end_scope();
+            // TODO
+            // self.environment.end_scope();
             match res {
                 ControlFlow::Return(val) => return Ok(val),
                 _ => return Ok(Value::Unit),
@@ -395,10 +382,7 @@ impl<'a> Visitor<'a> for Interpreter<'a> {
         Err(RuntimeError::FunctionNotDeclared(func.name.to_string()))
     }
 
-    fn visit_stmt(
-        &'a mut self,
-        stmt: &'a StmtKind<'a>,
-    ) -> Result<ControlFlow<'a>, RuntimeError<'a>> {
+    fn visit_stmt(&mut self, stmt: &'a StmtKind<'a>) -> Result<ControlFlow<'a>, RuntimeError> {
         let ctrl_flow = match stmt {
             StmtKind::BreakLoop => ControlFlow::Break,
             StmtKind::Expr(expr) => {
@@ -421,7 +405,7 @@ impl<'a> Visitor<'a> for Interpreter<'a> {
                 // TODO: start a new env here
                 if let Some(func) = self.environment.get_func(func_name) {
                     // TODO: any other way than cloning?
-                    func.clone().visit(self)?;
+                    func.visit(self)?;
                 }
                 ControlFlow::Nop
             }
@@ -446,7 +430,7 @@ impl<'a> Visitor<'a> for Interpreter<'a> {
                 // TODO: start a new env here
                 if let Some(func) = self.environment.get_func(func_name) {
                     // TODO: any other way than cloning?
-                    let res = func.clone().visit(self)?;
+                    let res = func.visit(self)?;
                     self.environment.register_variable(var_name, res);
                 }
                 ControlFlow::Nop
@@ -498,7 +482,7 @@ impl<'a> Visitor<'a> for Interpreter<'a> {
         Ok(ctrl_flow)
     }
 
-    fn visit_expr(&'a mut self, expr: &'a Expr) -> Result<Value<'a>, RuntimeError<'a>> {
+    fn visit_expr(&mut self, expr: &'a Expr) -> Result<Value<'a>, RuntimeError> {
         let val = match expr {
             Expr::BinaryExpr { op, lhs, rhs } => {
                 let lhs_val = lhs.visit(self)?;
@@ -545,44 +529,37 @@ impl<'a> Visitor<'a> for Interpreter<'a> {
             }
             Expr::ExprLeaf(expr_leaf) => self.visit_expr_leaf(expr_leaf)?,
             Expr::Ident(ident) => {
-                let val = self.environment.get_val_of_var(ident);
+                // TODO
+                let val = self.environment.get_val_of_var(ident).cloned();
                 val.ok_or_else(|| RuntimeError::VariableNotDeclared(ident.to_string()))?
             }
         };
         Ok(val)
     }
 
-    fn visit_expr_leaf(
-        &'a mut self,
-        expr_leaf: &'a ExprLeaf<'a>,
-    ) -> Result<Value<'a>, RuntimeError<'a>> {
+    fn visit_expr_leaf(&mut self, expr_leaf: &'a ExprLeaf<'a>) -> Result<Value<'a>, RuntimeError> {
         let val = match expr_leaf {
             ExprLeaf::Char(ch) => Value::Char(*ch),
             ExprLeaf::BoolTrue => Value::Bool(true),
             ExprLeaf::BoolFalse => Value::Bool(false),
             ExprLeaf::Int(int_val) => Value::Int(*int_val),
             ExprLeaf::Float(float_val) => Value::Float(*float_val),
-            ExprLeaf::Str(expr_string) => Value::Str(expr_string.clone()),
+            ExprLeaf::Str(expr_string) => Value::Str(expr_string),
         };
         Ok(val)
     }
 }
 
-pub(crate) trait Visitable<'a, T> {
-    fn visit(&'a self, v: &'a mut dyn Visitor<'a>) -> Result<T, RuntimeError<'a>>;
+pub(crate) trait Visitable<'ast> {
+    type Output: 'ast;
+
+    fn visit(&'ast self, v: &mut dyn Visitor<'ast>) -> Result<Self::Output, RuntimeError>;
 }
 
-impl<'a, T: Visitable<'a, ()>> Visitable<'a, ()> for Vec<T> {
-    fn visit(&'a self, v: &'a mut dyn Visitor<'a>) -> Result<(), RuntimeError<'a>> {
-        for elem in self {
-            elem.visit(v)?;
-        }
-        Ok(())
-    }
-}
+impl<'ast> Visitable<'ast> for Vec<StmtKind<'ast>> {
+    type Output = ControlFlow<'ast>;
 
-impl<'a, T: Visitable<'a, ControlFlow<'a>>> Visitable<'a, ControlFlow<'a>> for Vec<T> {
-    fn visit(&'a self, v: &'a mut dyn Visitor<'a>) -> Result<ControlFlow<'a>, RuntimeError<'a>> {
+    fn visit(&'ast self, v: &mut dyn Visitor<'ast>) -> Result<Self::Output, RuntimeError> {
         let mut res = ControlFlow::Nop;
         for elem in self {
             res = elem.visit(v)?;
@@ -597,16 +574,20 @@ impl<'a, T: Visitable<'a, ControlFlow<'a>>> Visitable<'a, ControlFlow<'a>> for V
     }
 }
 
-impl<'a> Visitable<'a, Value<'a>> for Function<'a> {
-    fn visit(&'a self, v: &'a mut dyn Visitor<'a>) -> Result<Value<'a>, RuntimeError<'a>> {
-        v.visit_function(self)
+impl<'ast> Visitable<'ast> for Function<'ast> {
+    type Output = Value<'ast>;
+
+    fn visit(&'ast self, v: &mut dyn Visitor<'ast>) -> Result<Self::Output, RuntimeError> {
+        Ok(v.visit_function(self).unwrap())
     }
 }
 
-impl<'a> Visitable<'a, ()> for Program<'a> {
-    fn visit(&'a self, v: &'a mut dyn Visitor<'a>) -> Result<(), RuntimeError<'a>> {
+impl<'ast> Visitable<'ast> for Program<'ast> {
+    type Output = ();
+
+    fn visit(&'ast self, v: &mut dyn Visitor<'ast>) -> Result<Self::Output, RuntimeError> {
         for function in &self.functions {
-            v.register_function(function)?;
+            v.register_function(function).unwrap();
         }
         for stmt in self.main_stmts.iter() {
             let stmt_ret = stmt.visit(v)?;
@@ -619,20 +600,26 @@ impl<'a> Visitable<'a, ()> for Program<'a> {
     }
 }
 
-impl<'a> Visitable<'a, ControlFlow<'a>> for StmtKind<'a> {
-    fn visit(&'a self, v: &'a mut dyn Visitor<'a>) -> Result<ControlFlow<'a>, RuntimeError<'a>> {
-        v.visit_stmt(self)
+impl<'ast> Visitable<'ast> for StmtKind<'ast> {
+    type Output = ControlFlow<'ast>;
+
+    fn visit(&'ast self, v: &mut dyn Visitor<'ast>) -> Result<Self::Output, RuntimeError> {
+        Ok(v.visit_stmt(self).unwrap())
     }
 }
 
-impl<'a> Visitable<'a, Value<'a>> for Expr<'a> {
-    fn visit(&'a self, v: &'a mut dyn Visitor<'a>) -> Result<Value<'a>, RuntimeError<'a>> {
-        v.visit_expr(self)
+impl<'ast> Visitable<'ast> for Expr<'ast> {
+    type Output = Value<'ast>;
+
+    fn visit(&'ast self, v: &mut dyn Visitor<'ast>) -> Result<Self::Output, RuntimeError> {
+        Ok(v.visit_expr(self).unwrap())
     }
 }
 
-impl<'a> Visitable<'a, Value<'a>> for ExprLeaf<'a> {
-    fn visit(&'a self, v: &'a mut dyn Visitor<'a>) -> Result<Value<'a>, RuntimeError<'a>> {
-        v.visit_expr_leaf(self)
+impl<'ast> Visitable<'ast> for ExprLeaf<'ast> {
+    type Output = Value<'ast>;
+
+    fn visit(&'ast self, v: &mut dyn Visitor<'ast>) -> Result<Self::Output, RuntimeError> {
+        Ok(v.visit_expr_leaf(self).unwrap())
     }
 }
