@@ -1,5 +1,5 @@
 use color_eyre::eyre::Result;
-use std::cell::RefCell;
+use std::{borrow::Cow, cell::RefCell};
 use thiserror::Error;
 
 use crate::lexer::{KeyWord, Literal, TokenKind};
@@ -28,7 +28,7 @@ pub(crate) enum Value<'a> {
     Float(f64),
     Char(char),
     Bool(bool),
-    Str(&'a str),
+    Str(Cow<'a, str>),
 }
 
 #[derive(Clone, Debug)]
@@ -156,7 +156,7 @@ impl<'a> ExprLeaf<'a> {
             ExprLeaf::Int(int) => Value::Int(*int),
             ExprLeaf::Float(float) => Value::Float(*float),
             ExprLeaf::Char(ch) => Value::Char(*ch),
-            ExprLeaf::Str(str_val) => Value::Str(str_val),
+            ExprLeaf::Str(str_val) => Value::Str(Cow::Borrowed(str_val)),
         }
     }
 }

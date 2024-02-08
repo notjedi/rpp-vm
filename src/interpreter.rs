@@ -1,6 +1,7 @@
 use color_eyre::eyre::Result;
 use itertools::Itertools;
 use std::{
+    borrow::Cow,
     cmp::Ordering,
     collections::HashMap,
     fmt::{Debug, Display, Write},
@@ -81,8 +82,10 @@ impl<'a> Add<Value<'a>> for Value<'a> {
             (Value::Int(lhs), Value::Float(rhs)) => Value::Float(lhs as f64 + rhs),
             (Value::Float(lhs), Value::Int(rhs)) => Value::Float(lhs + rhs as f64),
             (Value::Float(lhs), Value::Float(rhs)) => Value::Float(lhs + rhs),
-            // (Value::Str(lhs), rhs) => Value::Str(&(lhs.to_string() + " " + &rhs.to_string())),
-            // (lhs, Value::Str(rhs)) => Value::Str(&(lhs.to_string() + " " + &rhs)),
+            (Value::Str(lhs), rhs) => {
+                Value::Str(Cow::Owned(lhs.to_string() + " " + &rhs.to_string()))
+            }
+            (lhs, Value::Str(rhs)) => Value::Str(Cow::Owned(lhs.to_string() + " " + &rhs)),
             _ => unreachable!(),
         }
     }
@@ -97,8 +100,10 @@ impl<'a> Add<&Value<'a>> for Value<'a> {
             (Value::Int(lhs), Value::Float(rhs)) => Value::Float(lhs as f64 + *rhs),
             (Value::Float(lhs), Value::Int(rhs)) => Value::Float(lhs + *rhs as f64),
             (Value::Float(lhs), Value::Float(rhs)) => Value::Float(lhs + *rhs),
-            // (Value::Str(lhs), rhs) => Value::Str(&(lhs.to_string() + " " + &rhs.to_string())),
-            // (lhs, Value::Str(rhs)) => Value::Str(&(lhs.to_string() + " " + &rhs)),
+            (Value::Str(lhs), rhs) => {
+                Value::Str(Cow::Owned(lhs.to_string() + " " + &rhs.to_string()))
+            }
+            (lhs, Value::Str(rhs)) => Value::Str(Cow::Owned(lhs.to_string() + " " + &rhs)),
             _ => unreachable!(),
         }
     }
@@ -113,8 +118,10 @@ impl<'a> Add<Value<'a>> for &Value<'a> {
             (Value::Int(lhs), Value::Float(rhs)) => Value::Float(*lhs as f64 + rhs),
             (Value::Float(lhs), Value::Int(rhs)) => Value::Float(*lhs + rhs as f64),
             (Value::Float(lhs), Value::Float(rhs)) => Value::Float(*lhs + rhs),
-            // (Value::Str(lhs), rhs) => Value::Str(&(lhs.to_string() + " " + &rhs.to_string())),
-            // (lhs, Value::Str(rhs)) => Value::Str(&(lhs.to_string() + " " + &rhs)),
+            (Value::Str(lhs), rhs) => {
+                Value::Str(Cow::Owned(lhs.to_string() + " " + &rhs.to_string()))
+            }
+            (lhs, Value::Str(rhs)) => Value::Str(Cow::Owned(lhs.to_string() + " " + &rhs)),
             _ => unreachable!(),
         }
     }
@@ -129,8 +136,10 @@ impl<'a> Add<&Value<'a>> for &Value<'a> {
             (Value::Int(lhs), Value::Float(rhs)) => Value::Float(*lhs as f64 + *rhs),
             (Value::Float(lhs), Value::Int(rhs)) => Value::Float(*lhs + *rhs as f64),
             (Value::Float(lhs), Value::Float(rhs)) => Value::Float(*lhs + *rhs),
-            // (Value::Str(lhs), rhs) => Value::Str(&(lhs.to_string() + " " + &rhs.to_string())),
-            // (lhs, Value::Str(rhs)) => Value::Str(&(lhs.to_string() + " " + &rhs)),
+            (Value::Str(lhs), rhs) => {
+                Value::Str(Cow::Owned(lhs.to_string() + " " + &rhs.to_string()))
+            }
+            (lhs, Value::Str(rhs)) => Value::Str(Cow::Owned(lhs.to_string() + " " + &rhs)),
             _ => unreachable!(),
         }
     }
@@ -548,7 +557,7 @@ impl<'a> Visitor<'a> for Interpreter<'a> {
             ExprLeaf::BoolFalse => Value::Bool(false),
             ExprLeaf::Int(int_val) => Value::Int(*int_val),
             ExprLeaf::Float(float_val) => Value::Float(*float_val),
-            ExprLeaf::Str(expr_string) => Value::Str(expr_string),
+            ExprLeaf::Str(expr_string) => Value::Str(Cow::Borrowed(expr_string)),
         };
         Ok(val)
     }
