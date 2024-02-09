@@ -256,14 +256,14 @@ impl<'a> Scope<'a> {
 #[derive(Debug)]
 pub(crate) struct Environment<'a> {
     functions: Vec<&'a Function<'a>>,
-    scopes: Vec<Scope<'a>>,
+    scopes: Vec<Vec<Scope<'a>>>,
 }
 
 impl<'a> Environment<'a> {
     pub(crate) fn new() -> Self {
         Self {
             functions: vec![],
-            scopes: vec![Scope::new()],
+            scopes: vec![vec![Scope::new()]],
         }
     }
 
@@ -282,12 +282,20 @@ impl<'a> Environment<'a> {
         None
     }
 
+    pub(crate) fn start_func_scope(&mut self) {
+        self.scopes.push(vec![Scope::new()])
+    }
+
     pub(crate) fn start_scope(&mut self) {
-        self.scopes.push(Scope::new())
+        self.scopes.last_mut().unwrap().push(Scope::new())
+    }
+
+    pub(crate) fn end_func_scope(&mut self) {
+        self.scopes.pop();
     }
 
     pub(crate) fn end_scope(&mut self) {
-        self.scopes.pop();
+        self.scopes.last_mut().unwrap().pop();
     }
 
     pub(crate) fn register_function(&mut self, func: &'a Function<'a>) {
@@ -296,6 +304,8 @@ impl<'a> Environment<'a> {
 
     pub(crate) fn register_variable(&mut self, name: &str, value: Value<'a>) {
         self.scopes
+            .last_mut()
+            .unwrap()
             .last_mut()
             .unwrap()
             .variables
@@ -307,7 +317,7 @@ impl<'a> Environment<'a> {
         name: &str,
         value: Value<'a>,
     ) -> Result<(), RuntimeError<'a>> {
-        for scope in self.scopes.iter_mut().rev() {
+        for scope in self.scopes.last_mut().unwrap().iter_mut().rev() {
             if let Some(val) = scope.variables.get_mut(name) {
                 *val = value;
                 return Ok(());
@@ -316,11 +326,8 @@ impl<'a> Environment<'a> {
         Err(RuntimeError::VariableNotDeclared(name.to_string()))
     }
 
-    // TODO: this is now how we should be getting the value?
-    // functions shouldn't have the ability to access global vars defined in main
-    // only sub-scopes we have are if, else, for and while statements
     pub(crate) fn get_val_of_var(&self, name: &str) -> Option<&Value<'a>> {
-        for scope in self.scopes.iter().rev() {
+        for scope in self.scopes.last().unwrap().iter().rev() {
             if let Some(val) = scope.variables.get(name) {
                 return Some(val);
             }
@@ -382,9 +389,7 @@ impl<'a> Visitor<'a> for Interpreter<'a> {
 
     fn visit_function(&mut self, func: &'a Function<'a>) -> Result<Value<'a>, RuntimeError<'a>> {
         if self.environment.get_idx_of_func(&func.name).is_some() {
-            self.environment.start_scope();
             let res = func.body.visit(self)?;
-            self.environment.end_scope();
             match res {
                 ControlFlow::Return(val) => return Ok(val),
                 _ => return Ok(Value::Unit),
@@ -405,7 +410,6 @@ impl<'a> Visitor<'a> for Interpreter<'a> {
                 let mut print_str = String::new();
                 for expr in exprs {
                     let val = expr.visit(self)?;
-                    // TODO: how to use ? here
                     write!(&mut print_str, "{} ", val).expect("can't write to string buffer");
                 }
                 // NOTE: prints \n as new line instead of raw \n literal
@@ -413,10 +417,10 @@ impl<'a> Visitor<'a> for Interpreter<'a> {
                 ControlFlow::Nop
             }
             StmtKind::FuncCall(func_name) => {
-                // TODO: start a new env here
                 if let Some(func) = self.environment.get_func(func_name) {
-                    // TODO: any other way than cloning?
+                    self.environment.start_func_scope();
                     func.visit(self)?;
+                    self.environment.end_func_scope();
                 }
                 ControlFlow::Nop
             }
@@ -438,9 +442,7 @@ impl<'a> Visitor<'a> for Interpreter<'a> {
                 var_name,
                 func_name,
             } => {
-                // TODO: start a new env here
                 if let Some(func) = self.environment.get_func(func_name) {
-                    // TODO: any other way than cloning?
                     let res = func.visit(self)?;
                     self.environment.register_variable(var_name, res);
                 }
@@ -451,8 +453,10 @@ impl<'a> Visitor<'a> for Interpreter<'a> {
                 body,
                 else_body,
             } => {
-                // TODO: start a new scope here
+                self.environment.start_scope();
                 let res = condition.visit(self)?;
+                self.environment.end_scope();
+
                 if let Value::Bool(val) = res {
                     match val {
                         true => body.visit(self)?,
@@ -466,7 +470,9 @@ impl<'a> Visitor<'a> for Interpreter<'a> {
                 let mut res = ControlFlow::Nop;
                 let diff = forvar_diff(start, end, &self.environment);
                 for _ in 0..diff {
+                    self.environment.start_scope();
                     res = body.visit(self)?;
+                    self.environment.end_scope();
                     match res {
                         ControlFlow::Nop => {}
                         ControlFlow::Break => return Ok(ControlFlow::Nop),
@@ -480,7 +486,9 @@ impl<'a> Visitor<'a> for Interpreter<'a> {
                 while let Value::Bool(val) = condition.visit(self)?
                     && val
                 {
+                    self.environment.start_scope();
                     res = body.visit(self)?;
+                    self.environment.end_scope();
                     match res {
                         ControlFlow::Nop => {}
                         ControlFlow::Break => return Ok(ControlFlow::Nop),
