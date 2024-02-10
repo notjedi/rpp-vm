@@ -272,7 +272,7 @@ impl<'a> Environment<'a> {
             .iter()
             .rev()
             .find_position(|func| *func.name == *name)
-            .map(|(idx, _)| idx)
+            .map(|(idx, _)| self.functions.len() - idx - 1)
     }
 
     fn get_func(&self, name: &str) -> Option<&'a Function<'a>> {
