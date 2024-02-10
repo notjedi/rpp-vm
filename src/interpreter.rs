@@ -473,6 +473,14 @@ impl<'a> Visitor<'a> for Interpreter<'a> {
                     self.environment.start_scope();
                     res = body.visit(self)?;
                     self.environment.end_scope();
+                    match &(**start) {
+                        ForVar::Ident(name) => {
+                            let var_val = self.environment.get_val_of_var(name).unwrap();
+                            self.environment
+                                .update_variable(name, var_val + Value::Int(1))?;
+                        }
+                        _ => {}
+                    }
                     match res {
                         ControlFlow::Nop => {}
                         ControlFlow::Break => return Ok(ControlFlow::Nop),
