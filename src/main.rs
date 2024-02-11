@@ -9,17 +9,19 @@ mod compiler;
 mod interpreter;
 mod lexer;
 mod parser;
-// mod vm;
+mod vm;
 
 use crate::{
+    interpreter::{Interpreter, Visitable},
     lexer::{Lexer, TokenKind},
     parser::Parser,
+    vm::Vm,
 };
 
 use color_eyre::eyre::Result;
-use interpreter::{Interpreter, Visitable};
+use compiler::Compiler;
 
-const USE_COMPILER: bool = false;
+const USE_COMPILER: bool = true;
 
 fn main() -> Result<()> {
     color_eyre::install()?;
@@ -104,10 +106,10 @@ fn main() -> Result<()> {
     let ast = parser.parse().unwrap();
     if USE_COMPILER {
         // Bytecode interpreter
-        // let compiler = Compiler::new();
-        // let bytecode_program = compiler.compile_program(&ast);
-        // let mut vm = Vm::new();
-        // vm.interpret(&bytecode_program);
+        let compiler = Compiler::new();
+        let bytecode_program = compiler.compile_program(&ast);
+        let mut vm = Vm::new();
+        vm.interpret(&bytecode_program);
     } else {
         // Tree-walk interpreter
         let mut interpreter = Interpreter::new();
