@@ -1,7 +1,6 @@
-use crate::{
-    interpreter::Value,
-    parser::{BinaryOp, Expr, ExprLeaf, ForVar, LogicalOp, Program, StmtKind},
-};
+use std::borrow::Cow;
+
+use crate::parser::{BinaryOp, Expr, ExprLeaf, ForVar, LogicalOp, Program, StmtKind};
 
 #[derive(Copy, Clone, Debug)]
 pub(crate) enum Instruction {
@@ -29,12 +28,36 @@ pub(crate) enum Instruction {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct Bytecode {
-    pub(crate) constants: Vec<Value>,
+pub(crate) enum CompilerValue<'a> {
+    Unit,
+    Int(i64),
+    Float(f64),
+    Char(char),
+    Bool(bool),
+    Str(Cow<'a, str>),
+    Function(ProgFunction<'a>),
+}
+
+impl<'ast> From<&ExprLeaf<'ast>> for CompilerValue<'ast> {
+    fn from(value: &ExprLeaf<'ast>) -> Self {
+        match value {
+            ExprLeaf::BoolTrue => Self::Bool(true),
+            ExprLeaf::BoolFalse => Self::Bool(false),
+            ExprLeaf::Int(int) => Self::Int(*int),
+            ExprLeaf::Float(float) => Self::Float(*float),
+            ExprLeaf::Char(ch) => Self::Char(*ch),
+            ExprLeaf::Str(str_val) => Self::Str(Cow::Borrowed(str_val)),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct Bytecode<'a> {
+    pub(crate) constants: Vec<CompilerValue<'a>>,
     pub(crate) instructions: Vec<Instruction>,
 }
 
-impl Bytecode {
+impl<'a> Bytecode<'a> {
     pub(crate) fn new() -> Self {
         Self {
             constants: vec![],
@@ -46,42 +69,42 @@ impl Bytecode {
         self.instructions.push(instr);
     }
 
-    pub(crate) fn push_constant(&mut self, val: Value) -> usize {
+    pub(crate) fn push_constant(&mut self, val: CompilerValue<'a>) -> usize {
         self.constants.push(val);
         self.constants.len() - 1
     }
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct ProgFunction {
-    pub(crate) name: Box<String>,
-    pub(crate) bytecode: Bytecode,
+pub(crate) struct ProgFunction<'ast> {
+    pub(crate) name: &'ast str,
+    pub(crate) bytecode: Bytecode<'ast>,
 }
 
-impl ProgFunction {
-    pub(crate) fn new(name: &str) -> Self {
+impl<'ast> ProgFunction<'ast> {
+    pub(crate) fn new(name: &'ast str) -> Self {
         Self {
-            name: Box::new(name.to_string()),
+            name,
             bytecode: Bytecode::new(),
         }
     }
 }
 
 #[derive(Debug)]
-pub(crate) struct Local {
-    name: Box<String>,
+pub(crate) struct Local<'ast> {
+    name: &'ast str,
     depth: usize,
 }
 
-pub(crate) struct Compiler {
-    bytecode_program: Bytecode,
-    locals: Vec<Local>,
+pub(crate) struct Compiler<'ast> {
+    bytecode_program: Bytecode<'ast>,
+    locals: Vec<Local<'ast>>,
     scope_depth: usize,
     seen_break_stmt: bool,
     loop_start_depth: usize,
 }
 
-impl Compiler {
+impl<'ast> Compiler<'ast> {
     pub(crate) fn new() -> Self {
         Self {
             bytecode_program: Bytecode::new(),
@@ -92,24 +115,24 @@ impl Compiler {
         }
     }
 
-    pub(crate) fn compile_program(mut self, program: &Program) -> ProgFunction {
+    pub(crate) fn compile_program(mut self, program: &Program<'ast>) -> ProgFunction<'ast> {
         self.eval_functions(program);
         self.eval_stmts(&program.main_stmts);
         self.bytecode_program.write_instruction(Instruction::Return);
         ProgFunction {
-            name: "_mainspeical".to_string().into(),
+            name: "_mainspeical",
             bytecode: self.bytecode_program,
         }
     }
 
-    pub(crate) fn eval_functions(&mut self, program: &Program) {
+    pub(crate) fn eval_functions(&mut self, program: &Program<'ast>) {
         for func in program.functions.iter() {
             let mut func_compiler = Compiler::new();
             func_compiler.eval_stmts(&func.body);
             match func_compiler.bytecode_program.instructions.last() {
                 Some(Instruction::Return) => {}
                 _ => {
-                    let idx = self.bytecode_program.push_constant(Value::Unit);
+                    let idx = self.bytecode_program.push_constant(CompilerValue::Unit);
                     self.bytecode_program
                         .write_instruction(Instruction::Constant(idx));
                     func_compiler
@@ -119,15 +142,15 @@ impl Compiler {
                 }
             }
             let prog_func = ProgFunction {
-                name: func.name.clone().into(),
+                name: func.name,
                 bytecode: func_compiler.bytecode_program,
             };
             let name_idx = self
                 .bytecode_program
-                .push_constant(Value::Str(func.name.clone()));
+                .push_constant(CompilerValue::Str(Cow::Borrowed(func.name)));
             let prog_idx = self
                 .bytecode_program
-                .push_constant(Value::ProgFunction(prog_func));
+                .push_constant(CompilerValue::Function(prog_func));
             self.bytecode_program
                 .write_instruction(Instruction::Constant(prog_idx));
             self.bytecode_program
@@ -135,7 +158,7 @@ impl Compiler {
         }
     }
 
-    fn eval_stmts(&mut self, stmts: &Vec<StmtKind>) {
+    fn eval_stmts(&mut self, stmts: &Vec<StmtKind<'ast>>) {
         let seen_break_stmt = self.seen_break_stmt;
         let loop_start_depth = self.loop_start_depth;
         for stmt in stmts.iter() {
@@ -170,8 +193,8 @@ impl Compiler {
 
     fn get_idx_of_func(&self, func_name: &str) -> Option<usize> {
         for (i, val) in self.bytecode_program.constants.iter().enumerate() {
-            if let Value::ProgFunction(func) = val
-                && *func.name == func_name
+            if let CompilerValue::Function(func) = val
+                && func.name == func_name
             {
                 return Some(i);
             }
@@ -181,7 +204,7 @@ impl Compiler {
 
     fn get_idx_of_local(&self, name: &str) -> Option<usize> {
         for (idx, local) in self.locals.iter().rev().enumerate() {
-            if *local.name == name {
+            if local.name == name {
                 return Some(self.locals.len() - idx - 1);
             }
         }
@@ -193,7 +216,7 @@ impl Compiler {
         while let Some(local) = locals_iter.next()
             && local.depth == self.scope_depth
         {
-            if *local.name == name {
+            if local.name == name {
                 return true;
             }
         }
@@ -242,15 +265,15 @@ impl Compiler {
         let instr = self.bytecode_program.instructions[offset] = instr;
     }
 
-    fn forvar_to_expr(val: &ForVar) -> Expr {
+    fn forvar_to_expr(val: &ForVar<'ast>) -> Expr<'ast> {
         match val {
             ForVar::Int(int_val) => Expr::ExprLeaf(ExprLeaf::Int(*int_val)),
-            ForVar::Ident(var_name) => Expr::Ident((*var_name).clone()),
+            ForVar::Ident(var_name) => Expr::Ident(*var_name),
             ForVar::Float(_) => todo!("return compile time error"),
         }
     }
 
-    fn eval_stmt(&mut self, stmt: &StmtKind) {
+    fn eval_stmt(&mut self, stmt: &StmtKind<'ast>) {
         match stmt {
             StmtKind::BreakLoop => {
                 let mut count = 0;
@@ -272,7 +295,9 @@ impl Compiler {
             StmtKind::Comment(_) => {}
             StmtKind::Print(exprs) => {
                 if exprs.len() == 0 {
-                    let idx = self.bytecode_program.push_constant(Value::Char(' '));
+                    let idx = self
+                        .bytecode_program
+                        .push_constant(CompilerValue::Char(' '));
                     self.bytecode_program
                         .write_instruction(Instruction::Constant(idx));
                 } else {
@@ -290,7 +315,7 @@ impl Compiler {
             StmtKind::FuncCall(func_name) => {
                 let idx = self
                     .bytecode_program
-                    .push_constant(Value::Str(func_name.clone().into()));
+                    .push_constant(CompilerValue::Str(Cow::Borrowed(*func_name)));
                 self.bytecode_program
                     .write_instruction(Instruction::Method(idx));
             }
@@ -304,7 +329,7 @@ impl Compiler {
                     false => {
                         self.eval_expr(rhs);
                         self.locals.push(Local {
-                            name: lhs.clone(),
+                            name: lhs,
                             depth: self.scope_depth,
                         });
                         self.bytecode_program
@@ -329,12 +354,12 @@ impl Compiler {
             } => {
                 let idx = self
                     .bytecode_program
-                    .push_constant(Value::Str(func_name.clone().into()));
+                    .push_constant(CompilerValue::Str(Cow::Borrowed(*func_name)));
                 self.bytecode_program
                     .write_instruction(Instruction::Method(idx));
 
                 self.locals.push(Local {
-                    name: var_name.clone(),
+                    name: var_name,
                     depth: self.scope_depth,
                 });
                 self.bytecode_program
@@ -386,7 +411,7 @@ impl Compiler {
                 self.begin_scope();
                 if let Expr::ExprLeaf(ExprLeaf::Int(_)) = start_expr {
                     let start_expr_declare = StmtKind::Declare {
-                        lhs: Box::new(String::from("for_var_start_special")),
+                        lhs: &"for_var_start_special",
                         rhs: Box::new(start_expr.clone()),
                     };
                     self.eval_stmt(&start_expr_declare);
@@ -398,7 +423,7 @@ impl Compiler {
                 }
                 if let Expr::ExprLeaf(ExprLeaf::Int(_)) = end_expr {
                     let end_expr_declare = StmtKind::Declare {
-                        lhs: Box::new(String::from("for_var_end_special")),
+                        lhs: &"for_var_end_special",
                         rhs: Box::new(end_expr.clone()),
                     };
                     self.eval_stmt(&end_expr_declare);
@@ -420,17 +445,15 @@ impl Compiler {
                 // incr the start var
                 let incr_stmt = match &(**start) {
                     ForVar::Int(int_val) => StmtKind::Assign {
-                        lhs: Box::new(String::from("for_var_start_special")),
+                        lhs: &"for_var_start_special",
                         rhs: Box::new(Expr::BinaryExpr {
                             op: BinaryOp::Add,
-                            lhs: Box::new(Expr::Ident(Box::new(String::from(
-                                "for_var_start_special",
-                            )))),
+                            lhs: Box::new(Expr::Ident(&"for_var_start_special")),
                             rhs: Box::new(incr_expr),
                         }),
                     },
                     ForVar::Ident(var_name) => StmtKind::Assign {
-                        lhs: (*var_name).clone(),
+                        lhs: *var_name,
                         rhs: Box::new(Expr::BinaryExpr {
                             op: BinaryOp::Add,
                             lhs: Box::new(start_expr),
@@ -477,7 +500,7 @@ impl Compiler {
         }
     }
 
-    fn eval_expr(&mut self, expr: &Expr) {
+    fn eval_expr(&mut self, expr: &Expr<'ast>) {
         match expr {
             Expr::BinaryExpr { op, lhs, rhs } => {
                 self.eval_expr(lhs);
@@ -531,7 +554,7 @@ impl Compiler {
                 self.bytecode_program.write_instruction(instr);
             }
             Expr::ExprLeaf(expr_leaf) => {
-                let val = ExprLeaf::to_value(expr_leaf);
+                let val = CompilerValue::from(expr_leaf);
                 let idx = self.bytecode_program.push_constant(val);
                 self.bytecode_program
                     .write_instruction(Instruction::Constant(idx));
