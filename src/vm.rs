@@ -301,9 +301,9 @@ impl<'ast> Vm<'ast> {
                 }
                 Instruction::Equal => todo!(),
                 Instruction::GetGlobal(idx) => {
-                    let global_name = self.current_bytecode().constants[idx].clone();
+                    let global_name = &self.current_bytecode().constants[idx];
                     if let CompilerValue::Str(name) = global_name {
-                        if let Some(val) = self.globals.get(&(*name)) {
+                        if let Some(val) = self.globals.get(&(**name)) {
                             self.value_stack.push(val.clone());
                         } else {
                             todo!("return runtime time error")
@@ -348,14 +348,10 @@ impl<'ast> Vm<'ast> {
                 Instruction::Method(idx) => {
                     let func_name = &self.current_bytecode().constants[idx];
                     if let CompilerValue::Str(name) = func_name {
-                        let func_val = self
-                            .globals
-                            .get(&(**name))
-                            .expect("can't find function")
-                            .clone();
+                        let func_val = self.globals.get(&(**name)).expect("can't find function");
                         if let CompilerValue::Function(func) = func_val {
                             let func_call_frame = CallFrame {
-                                program: func,
+                                program: func.clone(),
                                 stack_offset: self.value_stack.len(),
                                 ip: 0,
                             };

@@ -12,6 +12,7 @@ mod parser;
 mod vm;
 
 use crate::{
+    compiler::Compiler,
     interpreter::{Interpreter, Visitable},
     lexer::{Lexer, TokenKind},
     parser::Parser,
@@ -19,7 +20,6 @@ use crate::{
 };
 
 use color_eyre::eyre::Result;
-use compiler::Compiler;
 
 const USE_COMPILER: bool = true;
 
