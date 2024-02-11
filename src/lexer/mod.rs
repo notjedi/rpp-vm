@@ -415,7 +415,7 @@ mod tests {
     use color_eyre::eyre::Result;
 
     #[test]
-    fn test_fizz_buzz() -> Result<()> {
+    fn test_lexer() -> Result<()> {
         color_eyre::install()?;
         let program = include_str!("../../testdata/snapshots/test.rpp");
         let snapshot_string = Lexer::snapshot_lexing(program)?;
