@@ -686,6 +686,7 @@ mod tests {
         Ok(())
     }
 
+    // https://stackoverflow.com/questions/72185130/how-to-capture-the-content-of-stdout-stderr-when-i-cannot-change-the-code-that-p
     fn capture_stdout<F>(f: F) -> String
     where
         F: FnOnce() -> (),

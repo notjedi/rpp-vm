@@ -427,3 +427,52 @@ impl<'ast> Vm<'ast> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::{io, sync::Arc};
+
+    use crate::{compiler::Compiler, lexer::Lexer, parser::Parser, vm::Vm, TokenKind};
+
+    use color_eyre::eyre::Result;
+
+    #[test]
+    fn test_vm() -> Result<()> {
+        let snapshot_string = capture_stdout(|| {
+            let program = include_str!("../testdata/snapshots/test_program.rpp");
+            let tokens = Lexer::tokenize_str(program).unwrap();
+            let token_kinds = tokens
+                .into_iter()
+                .map(|tok| tok.kind)
+                .collect::<Vec<TokenKind>>();
+            let parser = Parser::new(&token_kinds);
+            let ast = parser.parse().unwrap();
+            let compiler = Compiler::new();
+            let bytecode_program = compiler.compile_program(&ast);
+            let mut vm = Vm::new();
+            vm.interpret(&bytecode_program);
+        });
+
+        let mut settings = insta::Settings::clone_current();
+        settings.set_snapshot_path("../testdata/output/");
+        settings.bind(|| {
+            insta::assert_snapshot!(snapshot_string.trim());
+        });
+
+        Ok(())
+    }
+
+    // https://stackoverflow.com/questions/72185130/how-to-capture-the-content-of-stdout-stderr-when-i-cannot-change-the-code-that-p
+    fn capture_stdout<F>(f: F) -> String
+    where
+        F: FnOnce() -> (),
+    {
+        io::set_output_capture(Some(Default::default()));
+        f();
+        let captured = io::set_output_capture(None);
+        let captured = Arc::try_unwrap(captured.unwrap()).unwrap();
+        let captured = captured.into_inner().unwrap();
+        let captured = String::from_utf8(captured).unwrap();
+        captured
+    }
+}

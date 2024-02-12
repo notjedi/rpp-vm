@@ -16,3 +16,4 @@ I was just toying around so it's kinda slow.
 5. https://github.com/rust-lang/rust/blob/master/compiler/rustc_lexer/src/lib.rs
 6. https://craftinginterpreters.com
 7. https://thume.ca/2019/04/18/writing-a-compiler-in-rust
+8. https://github.com/pretzelhammer/rust-blog/blob/master/posts/common-rust-lifetime-misconceptions.md

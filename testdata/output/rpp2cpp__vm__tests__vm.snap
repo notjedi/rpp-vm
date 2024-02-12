@@ -1,0 +1,38 @@
+---
+source: src/vm.rs
+expression: snapshot_string.trim()
+---
+ix is less than 5
+out of the if statement, ix is now = 0
+ 
+0
+1
+2
+3
+4
+done with outer loop
+0
+1
+2
+3
+4
+done with outer loop
+ 
+Hi from for stmt
+Hi from for stmt
+Hi from for stmt
+Hi from for stmt
+ 
+0
+1
+2
+3
+4
+breaking out of loop...
+ 
+0
+1
+2
+breaking out of loop...
+hi from myfunc_one func
+100
