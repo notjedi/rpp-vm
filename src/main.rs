@@ -1,5 +1,6 @@
 #![feature(let_chains)]
 #![feature(inline_const_pat)]
+#![feature(internal_output_capture)]
 #![allow(dead_code)]
 #![allow(unused_variables)]
 #![allow(incomplete_features)]
