@@ -299,7 +299,12 @@ impl<'ast> Vm<'ast> {
                     let res = a / b;
                     self.value_stack.push(res);
                 }
-                Instruction::Equal => todo!(),
+                Instruction::Equal => {
+                    let b = self.pop_stack();
+                    let a = self.pop_stack();
+                    let res = CompilerValue::Bool(a == b);
+                    self.value_stack.push(res);
+                }
                 Instruction::GetGlobal(idx) => {
                     let global_name = &self.current_bytecode().constants[idx];
                     if let CompilerValue::Str(name) = global_name {

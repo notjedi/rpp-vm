@@ -538,6 +538,7 @@ impl<'ast> Compiler<'ast> {
                         self.bytecode_program.write_instruction(Instruction::Equal);
                     }
                     LogicalOp::NotEqual => {
+                        self.bytecode_program.write_instruction(Instruction::Equal);
                         self.bytecode_program.write_instruction(Instruction::Not);
                     }
                 };
