@@ -60,6 +60,7 @@ pub(crate) enum StmtKind<'a> {
         rhs: BoxExpr<'a>,
     },
     AssignFuncCall {
+        // TODO: convert this to Expr::ExprLeaf(ExprLeaf::Ident)?
         var_name: &'a str,
         func_name: &'a str,
     },
@@ -606,12 +607,206 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::Parser;
-    use crate::lexer::{Lexer, TokenKind};
     use color_eyre::eyre::Result;
+    use std::collections::HashMap;
+
+    use super::{Expr, ForVar, Parser, Program, StmtKind};
+    use crate::lexer::{Lexer, TokenKind};
+
+    #[derive(Debug, Default)]
+    struct VarUsageTracker {
+        var_usage_map: HashMap<String, usize>,
+        stmt_count: usize,
+    }
+
+    impl VarUsageTracker {
+        fn track(&mut self, ast: &Program) {
+            self.visit_statements(&ast.main_stmts);
+        }
+
+        fn visit_statements(&mut self, stmts: &[StmtKind]) {
+            for stmt in stmts.iter().rev() {
+                match stmt {
+                    StmtKind::BreakLoop => {}
+                    StmtKind::Expr(expr) => self.visit_expr(expr),
+                    StmtKind::Comment(_) => {}
+                    StmtKind::Print(exprs) => {
+                        for expr in exprs.iter() {
+                            self.visit_expr(expr);
+                        }
+                    }
+                    StmtKind::FuncCall(_) => todo!(),
+                    StmtKind::FuncReturn(_) => todo!(),
+                    StmtKind::Declare { lhs, rhs } => {
+                        self.visit_expr(rhs);
+                        if !self.var_usage_map.contains_key(*lhs) {
+                            self.var_usage_map.insert(lhs.to_string(), self.stmt_count);
+                        }
+                    }
+                    StmtKind::Assign { lhs, rhs } => {
+                        self.visit_expr(rhs);
+                        if !self.var_usage_map.contains_key(*lhs) {
+                            self.var_usage_map.insert(lhs.to_string(), self.stmt_count);
+                        }
+                    }
+                    StmtKind::AssignFuncCall {
+                        var_name,
+                        func_name,
+                    } => {
+                        if !self.var_usage_map.contains_key(*var_name) {
+                            self.var_usage_map
+                                .insert(var_name.to_string(), self.stmt_count);
+                        }
+                    }
+                    StmtKind::IfCond {
+                        condition,
+                        body,
+                        else_body,
+                    } => {
+                        let start_stmt_count = self.stmt_count;
+                        self.visit_statements(else_body);
+                        let else_stmt_count = self.stmt_count;
+                        self.stmt_count = start_stmt_count;
+                        self.visit_statements(body);
+                        self.stmt_count = self.stmt_count.max(else_stmt_count);
+                        self.visit_expr(&condition);
+                    }
+                    StmtKind::ForLoop { start, end, body } => {
+                        // TODO: log `var_name` usage
+                        if let ForVar::Ident(var_name) = **start {
+                            if !self.var_usage_map.contains_key(var_name) {
+                                self.var_usage_map
+                                    .insert(var_name.to_string(), self.stmt_count);
+                            }
+                        }
+                        if let ForVar::Ident(var_name) = **end {
+                            if !self.var_usage_map.contains_key(var_name) {
+                                self.var_usage_map
+                                    .insert(var_name.to_string(), self.stmt_count);
+                            }
+                        }
+                        self.visit_statements(body);
+                    }
+                    StmtKind::WhileLoop { condition, body } => {
+                        self.visit_expr(&condition);
+                        self.visit_statements(body);
+                    }
+                }
+            }
+        }
+
+        fn visit_expr(&mut self, expr: &Expr) {
+            match expr {
+                Expr::BinaryExpr { op, lhs, rhs } => {
+                    self.visit_expr(lhs);
+                    self.visit_expr(rhs);
+                    self.stmt_count += 1;
+                }
+                Expr::LogicalExpr { op, lhs, rhs } => {
+                    self.visit_expr(lhs);
+                    self.visit_expr(rhs);
+                    self.stmt_count += 1;
+                }
+                Expr::UnaryExpr { op, child } => {
+                    self.visit_expr(child);
+                    self.stmt_count += 1;
+                }
+                Expr::ExprLeaf(expr_leaf) => {}
+                Expr::Ident(var_name) => {
+                    if !self.var_usage_map.contains_key(*var_name) {
+                        self.var_usage_map
+                            .insert(var_name.to_string(), self.stmt_count);
+                    }
+                }
+            }
+        }
+    }
+
+    fn count(expr: &Expr) -> usize {
+        let mut cnt = 1;
+        match expr {
+            Expr::BinaryExpr { op, lhs, rhs } => {
+                cnt += count(lhs);
+                cnt += count(rhs);
+            }
+            Expr::LogicalExpr { op, lhs, rhs } => {
+                cnt += count(lhs);
+                cnt += count(rhs);
+            }
+            Expr::UnaryExpr { op, child } => {
+                cnt += count(child);
+            }
+            Expr::ExprLeaf(_) => cnt -= 1,
+            Expr::Ident(_) => cnt -= 1,
+        }
+        cnt
+    }
+
+    fn count_expr(stmts: &[StmtKind]) -> usize {
+        let mut cnt = 0;
+        for stmt in stmts.iter() {
+            match stmt {
+                StmtKind::BreakLoop => {}
+                StmtKind::Expr(expr) => cnt += count(expr),
+                StmtKind::Comment(_) => {}
+                StmtKind::Print(exprs) => {
+                    for expr in exprs.iter() {
+                        cnt += count(expr);
+                    }
+                }
+                StmtKind::FuncCall(_) => {}
+                StmtKind::FuncReturn(_) => {}
+                StmtKind::Declare { lhs, rhs } => cnt += count(rhs),
+                StmtKind::Assign { lhs, rhs } => cnt += count(rhs),
+                StmtKind::AssignFuncCall {
+                    var_name,
+                    func_name,
+                } => {}
+                StmtKind::IfCond {
+                    condition,
+                    body,
+                    else_body,
+                } => {
+                    cnt += count(condition);
+                    cnt += count_expr(&body);
+                    cnt += count_expr(&else_body);
+                }
+                StmtKind::ForLoop { start, end, body } => {
+                    cnt += count_expr(&body);
+                }
+                StmtKind::WhileLoop { condition, body } => {
+                    cnt += count(condition);
+                    cnt += count_expr(&body);
+                }
+            }
+        }
+        cnt
+    }
+
+    fn var_usage_logger() {
+        let program = include_str!("../testdata/snapshots/test.rpp");
+
+        let tokens = Lexer::tokenize_str(program).unwrap();
+        let token_kinds = tokens
+            .into_iter()
+            .map(|tok| tok.kind)
+            .collect::<Vec<TokenKind>>();
+
+        let parser = Parser::new(&token_kinds);
+        let ast = parser.parse().unwrap();
+
+        dbg!(count_expr(&ast.main_stmts));
+
+        let mut var_tracker = VarUsageTracker::default();
+        var_tracker.track(&ast);
+        dbg!(var_tracker);
+    }
 
     #[test]
     fn test_parser() -> Result<()> {
+        var_usage_logger();
+        assert!(false);
+
         let program = include_str!("../testdata/snapshots/test.rpp");
 
         let tokens = Lexer::tokenize_str(program)?;
