@@ -1,14 +1,15 @@
 use std::{
     array::IntoIter,
+    collections::HashMap,
     fmt::{Debug, Display},
     mem,
     ops::{Index, IndexMut},
     slice::Iter,
 };
 
-use crate::parser::{BinaryOp, Expr, ExprLeaf, Program, StmtKind};
+use crate::parser::{BinaryOp, Expr, ExprLeaf, ForVar, Program, StmtKind};
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(crate) enum Register {
     #[default]
     RAX,
@@ -95,6 +96,120 @@ impl Register {
     }
 }
 
+#[derive(Debug, Default)]
+struct VarUsageTracker {
+    var_usage_map: HashMap<String, usize>,
+    stmt_count: usize,
+}
+
+impl VarUsageTracker {
+    fn track(&mut self, ast: &Program) {
+        self.visit_statements(&ast.main_stmts);
+    }
+
+    fn visit_statements(&mut self, stmts: &[StmtKind]) {
+        for stmt in stmts.iter().rev() {
+            match stmt {
+                StmtKind::BreakLoop => {}
+                StmtKind::Expr(expr) => self.visit_expr(expr),
+                StmtKind::Comment(_) => {}
+                StmtKind::Print(exprs) => {
+                    for expr in exprs.iter() {
+                        self.visit_expr(expr);
+                    }
+                }
+                StmtKind::FuncCall(_) => todo!(),
+                StmtKind::FuncReturn(_) => todo!(),
+                StmtKind::Declare { lhs, rhs } => {
+                    self.visit_expr(rhs);
+                    if !self.var_usage_map.contains_key(*lhs) {
+                        self.var_usage_map.insert(lhs.to_string(), self.stmt_count);
+                    }
+                }
+                StmtKind::Assign { lhs, rhs } => {
+                    self.visit_expr(rhs);
+                    if !self.var_usage_map.contains_key(*lhs) {
+                        self.var_usage_map.insert(lhs.to_string(), self.stmt_count);
+                    }
+                }
+                StmtKind::AssignFuncCall {
+                    var_name,
+                    func_name,
+                } => {
+                    if !self.var_usage_map.contains_key(*var_name) {
+                        self.var_usage_map
+                            .insert(var_name.to_string(), self.stmt_count);
+                    }
+                }
+                StmtKind::IfCond {
+                    condition,
+                    body,
+                    else_body,
+                } => {
+                    let start_stmt_count = self.stmt_count;
+                    self.visit_statements(else_body);
+                    let else_stmt_count = self.stmt_count;
+                    self.stmt_count = start_stmt_count;
+                    self.visit_statements(body);
+                    self.stmt_count = self.stmt_count.max(else_stmt_count);
+                    self.visit_expr(&condition);
+                }
+                StmtKind::ForLoop { start, end, body } => {
+                    if let ForVar::Ident(var_name) = **start {
+                        if !self.var_usage_map.contains_key(var_name) {
+                            self.var_usage_map
+                                .insert(var_name.to_string(), self.stmt_count);
+                        }
+                    }
+                    if let ForVar::Ident(var_name) = **end {
+                        if !self.var_usage_map.contains_key(var_name) {
+                            self.var_usage_map
+                                .insert(var_name.to_string(), self.stmt_count);
+                        }
+                    }
+                    self.visit_statements(body);
+                }
+                StmtKind::WhileLoop { condition, body } => {
+                    self.visit_expr(&condition);
+                    self.visit_statements(body);
+                }
+            }
+        }
+    }
+
+    fn visit_expr(&mut self, expr: &Expr) {
+        match expr {
+            Expr::BinaryExpr { op, lhs, rhs } => {
+                self.visit_expr(lhs);
+                self.visit_expr(rhs);
+                self.stmt_count += 1;
+            }
+            Expr::LogicalExpr { op, lhs, rhs } => {
+                self.visit_expr(lhs);
+                self.visit_expr(rhs);
+                self.stmt_count += 1;
+            }
+            Expr::UnaryExpr { op, child } => {
+                self.visit_expr(child);
+                self.stmt_count += 1;
+            }
+            Expr::ExprLeaf(expr_leaf) => {}
+            Expr::Ident(var_name) => {
+                if !self.var_usage_map.contains_key(*var_name) {
+                    self.var_usage_map
+                        .insert(var_name.to_string(), self.stmt_count);
+                }
+            }
+        }
+    }
+}
+
+fn var_usage_logger(ast: &Program) -> VarUsageTracker {
+    let mut var_tracker = VarUsageTracker::default();
+    var_tracker.track(&ast);
+    var_tracker
+}
+
 pub(crate) struct RegisterVariableMap<'a> {
     register_variable_map: [&'a str; mem::variant_count::<Register>()],
 }
@@ -103,6 +218,36 @@ impl<'a> RegisterVariableMap<'a> {
     pub fn new() -> Self {
         Self {
             register_variable_map: [&""; mem::variant_count::<Register>()],
+        }
+    }
+
+    pub fn find(&self, var: &str) -> Option<usize> {
+        for i in 0..mem::variant_count::<Register>() {
+            if self.register_variable_map[i].is_empty() {
+                break;
+            }
+            if self.register_variable_map[i] == var {
+                return Some(i);
+            }
+        }
+        None
+    }
+
+    pub fn remove(&mut self, var: &str) {
+        for i in 0..mem::variant_count::<Register>() {
+            if self.register_variable_map[i].is_empty() {
+                break;
+            }
+            if self.register_variable_map[i] == var {
+                // left shift elems
+                for j in i..(mem::variant_count::<Register>() - 1) {
+                    self.register_variable_map[j] = self.register_variable_map[j + 1];
+                    if self.register_variable_map[j + 1].is_empty() {
+                        break;
+                    }
+                }
+                break;
+            }
         }
     }
 }
@@ -126,7 +271,7 @@ struct ArrayVec<T, const L: usize> {
     len: Option<usize>,
 }
 
-impl<T: Default + Copy, const L: usize> ArrayVec<T, L> {
+impl<T: Default + Copy + Eq, const L: usize> ArrayVec<T, L> {
     pub fn new() -> Self {
         Self {
             // TODO: use some other zero value, even if it's unsafe
@@ -152,6 +297,34 @@ impl<T: Default + Copy, const L: usize> ArrayVec<T, L> {
         Some(self.arr[self.len.unwrap()])
     }
 
+    pub fn find(&self, elem: T) -> Option<usize> {
+        if let Some(len) = self.len {
+            for i in 0..len {
+                if self.arr[i] == elem {
+                    return Some(i);
+                }
+            }
+        }
+        None
+    }
+
+    pub fn remove(&mut self, elem: T) {
+        if let Some(len) = self.len {
+            for i in 0..len {
+                if self.arr[i] == elem {
+                    // left shift elems
+                    for j in i..(len - 1) {
+                        self.arr[j] = self.arr[j + 1];
+                    }
+                    self.len = if len - 1 == 0 { None } else { Some(len - 1) };
+                    break;
+                }
+            }
+        } else {
+            panic!("hi, what do you want to remove?")
+        }
+    }
+
     pub fn len(&self) -> usize {
         match self.len {
             Some(idx) => idx + 1,
@@ -171,7 +344,7 @@ impl<T, const L: usize> From<[T; L]> for ArrayVec<T, L> {
 
 struct Codegen<'a> {
     register_variable_map: RegisterVariableMap<'a>,
-    available_regs: ArrayVec<Register, 16>,
+    available_regs: ArrayVec<Register, { mem::variant_count::<Register>() }>,
     stack: Vec<&'a str>,
     code: String,
 }
@@ -240,7 +413,7 @@ impl<'a> Codegen<'a> {
         }
     }
 
-    fn expr_codegen(&mut self, expr: Expr<'a>) -> Register {
+    fn expr_codegen(&mut self, expr: Expr<'a>) {
         match &expr {
             Expr::BinaryExpr { .. } => self.binary_expr_codgen(expr),
             Expr::LogicalExpr { .. } => todo!(),
@@ -252,7 +425,6 @@ impl<'a> Codegen<'a> {
                     let reg = self.get_available_reg();
                     self.code.push_str(&format!("MOV {}, {}\n", reg, val));
                     self.register_variable_map[reg] = &"__imm_val_internal__";
-                    reg
                 }
                 ExprLeaf::Float(_) => todo!(),
                 ExprLeaf::Char(_) => todo!(),
@@ -262,15 +434,12 @@ impl<'a> Codegen<'a> {
         }
     }
 
-    fn binary_expr_codgen(&mut self, expr: Expr<'a>) -> Register {
+    fn binary_expr_codgen(&mut self, expr: Expr<'a>) {
         if let Expr::BinaryExpr { op, lhs, rhs } = expr {
-            let reg1 = self.expr_codegen(*lhs);
-            let reg2 = self.expr_codegen(*rhs);
+            self.expr_codegen(*lhs);
+            self.expr_codegen(*rhs);
             match op {
-                BinaryOp::Add => {
-                    self.code.push_str(&format!("ADD {}, {}\n", reg1, reg2));
-                    reg1
-                }
+                BinaryOp::Add => todo!(),
                 BinaryOp::Sub => todo!(),
                 BinaryOp::Mul => todo!(),
                 BinaryOp::Div => todo!(),
@@ -290,6 +459,7 @@ mod tests {
 
     use super::Codegen;
     use crate::{
+        compiler::Compiler,
         lexer::{Lexer, TokenKind},
         Parser,
     };
@@ -310,6 +480,9 @@ mod tests {
 
         let parser = Parser::new(&token_kinds);
         let ast = parser.parse().unwrap();
+
+        let compiler = Compiler::new();
+        let bytecode_program = compiler.compile_program(&ast);
 
         let codegen = Codegen::new();
         let code = codegen.codegen(ast);

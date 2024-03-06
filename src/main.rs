@@ -1,4 +1,5 @@
 #![feature(let_chains)]
+#![feature(variant_count)]
 #![feature(inline_const_pat)]
 #![feature(internal_output_capture)]
 #![allow(dead_code)]
@@ -6,6 +7,7 @@
 #![allow(incomplete_features)]
 #![allow(clippy::enum_variant_names)]
 
+mod asm_codegen;
 mod compiler;
 mod interpreter;
 mod lexer;
