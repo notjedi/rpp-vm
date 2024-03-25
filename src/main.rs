@@ -7,7 +7,6 @@
 #![allow(incomplete_features)]
 #![allow(clippy::enum_variant_names)]
 
-mod asm_codegen;
 mod compiler;
 mod interpreter;
 mod lexer;

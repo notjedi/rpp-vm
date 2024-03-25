@@ -25,3 +25,6 @@ I was just toying around so it's kinda slow.
 14. https://patshaughnessy.net/2017/1/20/pointers-in-c-and-x86-assembly-language
 15. https://patshaughnessy.net/2022/2/19/llvm-ir-the-esperanto-of-computer-languages
 16. https://www.cs.virginia.edu/~evans/cs216/guides/x86.html
+17. https://www.cs.cornell.edu/courses/cs4120/2022sp/notes/regalloc
+18. http://dbp-consulting.com/tutorials/debugging/linuxProgramStartup.html
+19. https://oneraynyday.github.io/dev/2020/05/03/Analyzing-The-Simplest-C++-Program
